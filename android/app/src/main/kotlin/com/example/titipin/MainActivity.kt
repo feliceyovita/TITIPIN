@@ -1,4 +1,4 @@
-package com.example.titipin
+package com.titipin.app
 
 import io.flutter.embedding.android.FlutterActivity
 

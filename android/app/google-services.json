@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "8310617543",
+    "project_id": "titipin-compsci",
+    "storage_bucket": "titipin-compsci.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:8310617543:android:da5586fcfafc2193f915e2",
+        "android_client_info": {
+          "package_name": "com.titipin.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB1yakkpK4wyShAao1MH5N9tcjskbf4Rs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
