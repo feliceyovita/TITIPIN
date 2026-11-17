@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../../auth/register_login/login_screen.dart';
+import '../../auth/catalog/catalog_screen.dart';
+import '../../auth/data/firebase_auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,15 +27,20 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToLogin() async {
-    // Navigasi sementara.
-    // Nantinya diganti pemeriksaan sesi Firebase Auth.
     await Future<void>.delayed(_splashDuration);
-
+    bool verifiedSession = false;
+    try {
+      verifiedSession = await FirebaseAuthService.instance.hasVerifiedSession();
+    } catch (_) {
+      // Jika sesi tidak dapat diperiksa, tampilkan login, bukan katalog.
+    }
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => const LoginScreen(),
+        builder: (_) => verifiedSession
+            ? const CatalogScreen()
+            : const LoginScreen(),
       ),
     );
   }
