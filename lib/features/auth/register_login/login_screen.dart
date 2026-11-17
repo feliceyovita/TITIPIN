@@ -1,9 +1,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:titipin/core/theme/app_theme.dart';
-import '../widgets/widgets.dart';
-import 'register_screen.dart';
 import 'package:titipin/features/catalog/catalog_screen.dart';
+
+import '../widgets/widgets.dart';
+import '../data/firebase_auth_service.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -26,25 +29,42 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _login() {
-    debugPrint('[LOGIN] Tombol Masuk ditekan');
-
-    if (_formKey.currentState?.validate() != true) {
-      debugPrint('[LOGIN] Validasi form gagal');
+  Future<void> _login() async {
+    if (_isLoading || !_formKey.currentState!.validate()) {
       return;
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) {
-          debugPrint('[LOGIN] Membuka CatalogScreen dari features/catalog');
-          return const CatalogScreen();
-        },
-      ),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuthService.instance.login(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => const CatalogScreen(),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            FirebaseAuthService.messageFor(error),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
-
-
 
   void _forgotPassword() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -108,19 +128,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             keyboardType: TextInputType.emailAddress,
                             style: const TextStyle(fontSize: 12),
                             decoration: AuthWidgets.input(
-                              hint: 'email@gmail.com',
+                              hint: 'nama@students.usu.ac.id',
                               icon: Icons.mail_outline,
                             ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Email harus diisi';
-                              }
-                              if (!value.contains('@') ||
-                                  !value.contains('.')) {
-                                return 'Masukkan email yang valid';
-                              }
-                              return null;
-                            },
+                            validator:
+                            FirebaseAuthService.validateUsuEmail,
                           ),
                           const SizedBox(height: 20),
 
@@ -170,10 +182,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 5),
 
-                          AuthWidgets.primaryButton(
-                            text: 'Masuk',
-                            onPressed: _login,
-                          ),
+                          if (_isLoading)
+                            const Center(
+                              child: CircularProgressIndicator(),
+                            )
+                          else
+                            AuthWidgets.primaryButton(
+                              text: 'Masuk',
+                              onPressed: _login,
+                            ),
 
                           const SizedBox(height: 19),
 
@@ -209,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onTap: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
+                                    MaterialPageRoute<void>(
                                       builder: (_) =>
                                       const RegisterScreen(),
                                     ),

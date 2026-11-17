@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:titipin/core/theme/app_theme.dart';
 import '../widgets/widgets.dart';
+import '../data/firebase_auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -22,6 +23,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -33,25 +35,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _register() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _register() async {
+    if (_isLoading || !_formKey.currentState!.validate()) return;
 
     if (!_acceptedTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Silakan setujui Syarat dan Ketentuan terlebih dahulu.',
-          ),
+          content: Text('Setujui Syarat dan Ketentuan terlebih dahulu.'),
         ),
       );
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Data registrasi berhasil divalidasi.'),
-      ),
-    );
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuthService.instance.register(
+        name: _nameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Akun dibuat. Periksa email USU untuk verifikasi, lalu login.'),
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(FirebaseAuthService.messageFor(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -115,19 +132,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             keyboardType: TextInputType.emailAddress,
                             style: const TextStyle(fontSize: 12),
                             decoration: AuthWidgets.input(
-                              hint: 'email@gmail.com',
+                              hint: 'nama@students.usu.ac.id',
                               icon: Icons.email_outlined,
                             ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Email harus diisi';
-                              }
-                              if (!value.contains('@') ||
-                                  !value.contains('.')) {
-                                return 'Masukkan email yang valid';
-                              }
-                              return null;
-                            },
+                            validator: FirebaseAuthService.validateUsuEmail,
                           ),
                           const SizedBox(height: 15),
 
@@ -256,10 +264,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           const SizedBox(height: 16),
 
-                          AuthWidgets.primaryButton(
-                            text: 'Daftar',
-                            onPressed: _register,
-                          ),
+                          if (_isLoading)
+                            const Center(child: CircularProgressIndicator())
+                          else
+                            AuthWidgets.primaryButton(
+                              text: 'Daftar',
+                              onPressed: _register,
+                            ),
 
                           const SizedBox(height: 12),
 
