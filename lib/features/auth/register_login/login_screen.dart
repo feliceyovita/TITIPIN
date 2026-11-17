@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:titipin/core/theme/app_theme.dart';
 import '../widgets/widgets.dart';
 import 'register_screen.dart';
-import '../catalog/catalog_screen.dart';
+import 'package:titipin/features/catalog/catalog_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,16 +26,22 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-
-
   void _login() {
-    if (_formKey.currentState!.validate()) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const CatalogScreen(),
-        ),
-      );
+    debugPrint('[LOGIN] Tombol Masuk ditekan');
+
+    if (_formKey.currentState?.validate() != true) {
+      debugPrint('[LOGIN] Validasi form gagal');
+      return;
     }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) {
+          debugPrint('[LOGIN] Membuka CatalogScreen dari features/catalog');
+          return const CatalogScreen();
+        },
+      ),
+    );
   }
 
 
