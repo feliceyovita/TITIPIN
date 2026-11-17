@@ -1,0 +1,321 @@
+import 'package:flutter/material.dart';
+import 'package:titipin/features/catalog/widgets/catalog_bottom_navigation.dart';
+
+import 'catalog_item.dart';
+import 'detail_barang_screen.dart';
+import 'widgets/product_card.dart';
+
+const _demoItems = [
+  CatalogItem(
+    id: 'calculator',
+    name: 'Kalkulator Casio FX-991EX',
+    price: 120000,
+    category: 'Elektronik',
+    condition: 'Kondisi baik',
+    imageAssets: [
+      'assets/images/catalog/box_placeholder.png',
+      'assets/images/catalog/box_maskot.png',
+    ],
+    location: 'Harmonika USU',
+    description: 'Kalkulator dalam kondisi baik. Semua tombol berfungsi.',
+    sellerName: 'Penjual contoh',
+  ),
+  CatalogItem(
+    id: 'book',
+    name: 'Buku Pengantar Manajemen',
+    price: 45000,
+    category: 'Buku',
+    condition: 'Kondisi baik',
+  ),
+  CatalogItem(
+    id: 'keyboard',
+    name: 'Keyboard Bluetooth',
+    price: 95000,
+    category: 'Elektronik',
+    condition: 'Seperti baru',
+    sellerName: 'Penjual contoh',
+    isSellerVerified: true,
+  ),
+  CatalogItem(
+    id: 'shirt',
+    name: 'Kemeja Katun',
+    price: 55000,
+    category: 'Fashion',
+    condition: 'Kondisi baik',
+  ),
+];
+
+class CatalogScreen extends StatefulWidget {
+  const CatalogScreen({
+    super.key,
+    this.items = _demoItems,
+    this.onOpenItem,
+    this.onAddItem,
+    this.onOpenMyItems,
+    this.onOpenProfile,
+  });
+
+  final List<CatalogItem> items;
+  final ValueChanged<CatalogItem>? onOpenItem;
+  final VoidCallback? onAddItem;
+  final VoidCallback? onOpenMyItems;
+  final VoidCallback? onOpenProfile;
+
+  @override
+  State<CatalogScreen> createState() => _CatalogScreenState();
+}
+
+class _CatalogScreenState extends State<CatalogScreen> {
+  static const _headerColor = Color(0xFF506D54);
+  static const _backgroundColor = Color(0xFFF0F5FA);
+  static const _categories = ['Semua', 'Buku', 'Elektronik', 'Fashion'];
+
+  final _searchController = TextEditingController();
+  final Set<String> _savedIds = {};
+
+  String _category = 'Semua';
+  bool _showSaved = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _selectSavedTab(bool showSaved) {
+    FocusScope.of(context).unfocus();
+    setState(() => _showSaved = showSaved);
+  }
+
+  void _toggleSaved(String itemId) {
+    setState(() {
+      if (!_savedIds.remove(itemId)) {
+        _savedIds.add(itemId);
+      }
+    });
+  }
+
+  void _openDetail(CatalogItem item) {
+    FocusScope.of(context).unfocus();
+
+    final customOpenItem = widget.onOpenItem;
+    if (customOpenItem != null) {
+      customOpenItem(item);
+      return;
+    }
+
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => DetailBarangScreen(
+          item: item,
+          initiallySaved: _savedIds.contains(item.id),
+          onToggleSaved: () => _toggleSaved(item.id),
+        ),
+      ),
+    );
+  }
+
+  void _openPage(VoidCallback? open, String name) {
+    FocusScope.of(context).unfocus();
+
+    if (open != null) {
+      open();
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('Halaman $name belum terhubung.')),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleItems = widget.items.where((item) {
+      if (_showSaved) return _savedIds.contains(item.id);
+
+      final matchesCategory =
+          _category == 'Semua' || item.category == _category;
+
+      return matchesCategory && item.name.toLowerCase().contains(query);
+    }).toList();
+
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+
+    return Scaffold(
+      backgroundColor: _backgroundColor,
+      bottomNavigationBar: CatalogBottomNavigation(
+        showingSaved: _showSaved,
+        onHome: () => _selectSavedTab(false),
+        onSaved: () => _selectSavedTab(true),
+        onAdd: () => _openPage(widget.onAddItem, 'Unggah Barang'),
+        onMyItems: () => _openPage(widget.onOpenMyItems, 'Barang Saya'),
+        onProfile: () => _openPage(widget.onOpenProfile, 'Profil'),
+      ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!_showSaved)
+              _CatalogHeader(
+                backgroundColor: _headerColor,
+                searchController: _searchController,
+                onSearchChanged: (_) => setState(() {}),
+              ),
+            Expanded(
+              child: CustomScrollView(
+                key: PageStorageKey<String>(
+                  _showSaved ? 'saved-items' : 'catalog-items',
+                ),
+                keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  if (_showSaved)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                        child: Text(
+                          'Barang Tersimpan',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverToBoxAdapter(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                        child: Row(
+                          children: [
+                            for (final category in _categories)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text(category),
+                                  selected: _category == category,
+                                  selectedColor: const Color(0xFFE1ECE1),
+                                  backgroundColor: Colors.white,
+                                  onSelected: (_) {
+                                    setState(() => _category = category);
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (visibleItems.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Text(
+                          _showSaved
+                              ? 'Belum ada barang tersimpan.'
+                              : 'Barang tidak ditemukan.',
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: textScale > 1.4 ? 360 : 220,
+                          mainAxisExtent: 148.0 + 145.0 * textScale,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                            final item = visibleItems[index];
+
+                            return ProductCard(
+                              key: ValueKey(item.id),
+                              item: item,
+                              isSaved: _savedIds.contains(item.id),
+                              onTap: () => _openDetail(item),
+                              onToggleSaved: () => _toggleSaved(item.id),
+                            );
+                          },
+                          childCount: visibleItems.length,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CatalogHeader extends StatelessWidget {
+  const _CatalogHeader({
+    required this.backgroundColor,
+    required this.searchController,
+    required this.onSearchChanged,
+  });
+
+  final Color backgroundColor;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: backgroundColor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Image.asset(
+                  'assets/images/titipin_logo.png',
+                  width: 26,
+                  height: 26,
+                  excludeFromSemantics: true,
+                  errorBuilder: (_, error, stackTrace) => const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Titipin',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Cari nama barang...',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

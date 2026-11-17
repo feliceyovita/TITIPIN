@@ -3,7 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../../auth/register_login/login_screen.dart';
-import '../../auth/catalog/catalog_screen.dart';
+import '../../catalog/catalog_screen.dart';
 import '../../auth/data/firebase_auth_service.dart';
 
 class SplashScreen extends StatefulWidget {

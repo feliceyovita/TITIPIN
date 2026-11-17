@@ -1,10 +1,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:titipin/core/theme/app_theme.dart';
+import 'package:titipin/features/catalog/catalog_screen.dart';
+
 import '../widgets/widgets.dart';
-import 'register_screen.dart';
 import '../data/firebase_auth_service.dart';
-import '../catalog/catalog_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,18 +29,21 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-
-
   Future<void> _login() async {
-    if (_isLoading || !_formKey.currentState!.validate()) return;
+    if (_isLoading || !_formKey.currentState!.validate()) {
+      return;
+    }
 
     setState(() => _isLoading = true);
+
     try {
       await FirebaseAuthService.instance.login(
         email: _emailController.text,
         password: _passwordController.text,
       );
+
       if (!mounted) return;
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => const CatalogScreen(),
@@ -47,15 +51,20 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(FirebaseAuthService.messageFor(error))),
+        SnackBar(
+          content: Text(
+            FirebaseAuthService.messageFor(error),
+          ),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-
-
 
   void _forgotPassword() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +131,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               hint: 'nama@students.usu.ac.id',
                               icon: Icons.mail_outline,
                             ),
-                            validator: FirebaseAuthService.validateUsuEmail,
+                            validator:
+                            FirebaseAuthService.validateUsuEmail,
                           ),
                           const SizedBox(height: 20),
 
@@ -173,7 +183,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 5),
 
                           if (_isLoading)
-                            const Center(child: CircularProgressIndicator())
+                            const Center(
+                              child: CircularProgressIndicator(),
+                            )
                           else
                             AuthWidgets.primaryButton(
                               text: 'Masuk',
@@ -214,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onTap: () {
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(
+                                    MaterialPageRoute<void>(
                                       builder: (_) =>
                                       const RegisterScreen(),
                                     ),
