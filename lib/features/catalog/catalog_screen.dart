@@ -14,7 +14,7 @@ const _demoItems = [
     condition: 'Kondisi baik',
     imageAssets: [
       'assets/images/catalog/box_placeholder.png',
-      'assets/images/catalog/box_maskot.png',
+      'assets/images/catalog/box_mascot.png',
     ],
     location: 'Harmonika USU',
     description: 'Kalkulator dalam kondisi baik. Semua tombol berfungsi.',

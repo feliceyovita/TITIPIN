@@ -45,6 +45,8 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
+        leadingWidth: 48,
+        titleSpacing: 0,
         title: const Text('Detail Barang'),
         backgroundColor: _background,
         surfaceTintColor: Colors.transparent,

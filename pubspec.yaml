@@ -33,12 +33,9 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   google_fonts: ^6.3.2
-<<<<<<< HEAD
   firebase_core: ^5.1.0
   firebase_auth: ^7.0.1
-=======
   font_awesome_flutter: ^11.0.0
->>>>>>> bec7b2e (Tambah katalog dan detail barang Titipin)
 
 dev_dependencies:
   flutter_test:
