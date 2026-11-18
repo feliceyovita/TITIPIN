@@ -4,6 +4,7 @@ import 'package:titipin/features/catalog/widgets/catalog_bottom_navigation.dart'
 import 'catalog_item.dart';
 import 'detail_barang_screen.dart';
 import 'widgets/product_card.dart';
+import '../upload_item/upload_item_screen.dart';
 
 const _demoItems = [
   CatalogItem(
@@ -150,7 +151,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
         showingSaved: _showSaved,
         onHome: () => _selectSavedTab(false),
         onSaved: () => _selectSavedTab(true),
-        onAdd: () => _openPage(widget.onAddItem, 'Unggah Barang'),
+        onAdd: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UploadItemScreen(),
+            ),
+          );
+        },
         onMyItems: () => _openPage(widget.onOpenMyItems, 'Barang Saya'),
         onProfile: () => _openPage(widget.onOpenProfile, 'Profil'),
       ),
