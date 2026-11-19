@@ -1,6 +1,8 @@
+
 import 'package:flutter/material.dart';
 
 import '../catalog_item.dart';
+import 'catalog_photo.dart';
 
 class ProductCard extends StatelessWidget {
   const ProductCard({
@@ -21,7 +23,6 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final coverAsset = item.galleryAssets.first;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -30,7 +31,9 @@ class ProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFD9E6F2)),
+        side: const BorderSide(
+          color: Color(0xFFD9E6F2),
+        ),
       ),
       child: InkWell(
         onTap: onTap,
@@ -39,21 +42,21 @@ class ProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Menampilkan foto barang dari Cloudinary
               Expanded(
                 child: SizedBox(
                   width: double.infinity,
-                  child: Image.asset(
-                    coverAsset,
+                  child: CatalogPhoto(
+                    source: item.primaryPhotoSource,
                     fit: BoxFit.contain,
-                    excludeFromSemantics: true,
-                    errorBuilder: (_, error, stackTrace) {
-                      debugPrint('[KATALOG] Gagal memuat $coverAsset: $error');
-                      return _placeholder();
-                    },
+                    semanticLabel: item.name,
                   ),
                 ),
               ),
+
               const SizedBox(height: 4),
+
+              // Nama barang dan tombol simpan
               Row(
                 children: [
                   Expanded(
@@ -67,17 +70,23 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: isSaved ? 'Batal simpan' : 'Simpan barang',
+                    tooltip: isSaved
+                        ? 'Batal simpan'
+                        : 'Simpan barang',
                     isSelected: isSaved,
                     selectedIcon: const Icon(
                       Icons.favorite,
                       color: Colors.red,
                     ),
-                    icon: const Icon(Icons.favorite_border),
+                    icon: const Icon(
+                      Icons.favorite_border,
+                    ),
                     onPressed: onToggleSaved,
                   ),
                 ],
               ),
+
+              // Harga barang
               Text(
                 item.formattedPrice,
                 maxLines: 1,
@@ -87,7 +96,10 @@ class ProductCard extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+
               const SizedBox(height: 5),
+
+              // Kategori barang
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: const Color(0xFFE1ECE1),
@@ -102,11 +114,15 @@ class ProductCard extends StatelessWidget {
                     item.category,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(color: _accent),
+                    style: textTheme.labelSmall?.copyWith(
+                      color: _accent,
+                    ),
                   ),
                 ),
               ),
+
               const SizedBox(height: 4),
+
               Text(
                 item.condition,
                 maxLines: 1,
@@ -115,19 +131,6 @@ class ProductCard extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _placeholder() {
-    return const ColoredBox(
-      color: Color(0xFFF5F7F5),
-      child: Center(
-        child: Icon(
-          Icons.image_outlined,
-          size: 42,
-          color: _accent,
         ),
       ),
     );
