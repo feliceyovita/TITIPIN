@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'catalog_item.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'catalog_item.dart';
+import 'data/catalog_service.dart';
+import 'widgets/catalog_photo.dart';
 
 class DetailBarangScreen extends StatefulWidget {
   const DetailBarangScreen({
@@ -36,10 +40,59 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
     setState(() => _isSaved = !_isSaved);
   }
 
+  Future<void> _contactSeller() async {
+    final item = widget.item;
+    String phone = (item.sellerPhone ?? '')
+        .trim()
+        .replaceAll(RegExp(r'[\s()+-]'), '');
+    if (phone.startsWith('0')) {
+      phone = '62${phone.substring(1)}';
+    }
+    if (!RegExp(r'^[1-9]\d{7,14}$').hasMatch(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nomor WhatsApp penjual belum tersedia atau tidak valid.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final message = 'Halo, saya tertarik dengan barang '
+        '${item.name} yang ditawarkan di TITIPIN. '
+        'Apakah barangnya masih tersedia?';
+
+    final url = Uri.https('wa.me', '/$phone', {'text': message});
+
+    try {
+      final opened = await launchUrl(
+        url,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!mounted) return;
+
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp tidak dapat dibuka.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal membuka WhatsApp.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final photos = item.galleryAssets;
+    final photos = item.galleryPhotoSources;
     final theme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -77,19 +130,11 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
                         itemBuilder: (context, index) {
                           return Padding(
                             padding: const EdgeInsets.all(12),
-                            child: Image.asset(
-                              photos[index],
+                            child: CatalogPhoto(
+                              source: photos[index],
                               fit: BoxFit.contain,
                               semanticLabel:
                               'Foto ${index + 1} dari ${photos.length}',
-                              errorBuilder: (_, error, stackTrace) =>
-                              const Center(
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 42,
-                                  color: _green,
-                                ),
-                              ),
                             ),
                           );
                         },
@@ -258,13 +303,7 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
                 flex: 3,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: _green),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Kontak penjual belum tersedia.'),
-                      ),
-                    );
-                  },
+                  onPressed: _contactSeller,
                   icon: const FaIcon(
                     FontAwesomeIcons.whatsapp,
                     size: 18,
@@ -277,6 +316,85 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class DetailBarangByIdScreen extends StatefulWidget {
+  const DetailBarangByIdScreen({
+    super.key,
+    required this.barangId,
+    required this.initiallySaved,
+    required this.onToggleSaved,
+  });
+
+  final String barangId;
+  final bool initiallySaved;
+  final VoidCallback onToggleSaved;
+
+  @override
+  State<DetailBarangByIdScreen> createState() =>
+      _DetailBarangByIdScreenState();
+}
+
+class _DetailBarangByIdScreenState extends State<DetailBarangByIdScreen> {
+  late Stream<CatalogItem?> _itemStream =
+  CatalogService().watchItemById(widget.barangId);
+
+  void _retryLoad() {
+    setState(() {
+      _itemStream = CatalogService().watchItemById(widget.barangId);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<CatalogItem?>(
+      stream: _itemStream,
+      builder: (context, snapshot) {
+        // Kondisi data sedang dimuat
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Detail Barang')),
+            body: const Center(
+              child: CircularProgressIndicator(color: Color(0xFF506D54)),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          debugPrint('[DETAIL BARANG] ${snapshot.error}');
+          return Scaffold(
+            appBar: AppBar(title: const Text('Detail Barang')),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Gagal memuat detail barang.'),
+                  TextButton(
+                    onPressed: _retryLoad,
+                    child: const Text('Coba lagi'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final item = snapshot.data;
+        if (item == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Detail Barang')),
+            body: const Center(
+              child: Text('Barang sudah tidak tersedia.'),
+            ),
+          );
+        }
+        return DetailBarangScreen(
+          item: item,
+          initiallySaved: widget.initiallySaved,
+          onToggleSaved: widget.onToggleSaved,
+        );
+      },
     );
   }
 }

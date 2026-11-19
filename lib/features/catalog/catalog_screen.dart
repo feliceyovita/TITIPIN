@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:titipin/features/catalog/widgets/catalog_bottom_navigation.dart';
 
@@ -5,58 +6,19 @@ import 'catalog_item.dart';
 import 'detail_barang_screen.dart';
 import 'widgets/product_card.dart';
 import '../upload_item/upload_item_screen.dart';
-
-const _demoItems = [
-  CatalogItem(
-    id: 'calculator',
-    name: 'Kalkulator Casio FX-991EX',
-    price: 120000,
-    category: 'Elektronik',
-    condition: 'Kondisi baik',
-    imageAssets: [
-      'assets/images/catalog/box_placeholder.png',
-      'assets/images/catalog/box_mascot.png',
-    ],
-    location: 'Harmonika USU',
-    description: 'Kalkulator dalam kondisi baik. Semua tombol berfungsi.',
-    sellerName: 'Penjual contoh',
-  ),
-  CatalogItem(
-    id: 'book',
-    name: 'Buku Pengantar Manajemen',
-    price: 45000,
-    category: 'Buku',
-    condition: 'Kondisi baik',
-  ),
-  CatalogItem(
-    id: 'keyboard',
-    name: 'Keyboard Bluetooth',
-    price: 95000,
-    category: 'Elektronik',
-    condition: 'Seperti baru',
-    sellerName: 'Penjual contoh',
-    isSellerVerified: true,
-  ),
-  CatalogItem(
-    id: 'shirt',
-    name: 'Kemeja Katun',
-    price: 55000,
-    category: 'Fashion',
-    condition: 'Kondisi baik',
-  ),
-];
+import 'data/catalog_service.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({
     super.key,
-    this.items = _demoItems,
+    this.items,
     this.onOpenItem,
     this.onAddItem,
     this.onOpenMyItems,
     this.onOpenProfile,
   });
 
-  final List<CatalogItem> items;
+  final List<CatalogItem>? items;
   final ValueChanged<CatalogItem>? onOpenItem;
   final VoidCallback? onAddItem;
   final VoidCallback? onOpenMyItems;
@@ -67,9 +29,13 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen> {
+  late Stream<List<CatalogItem>> _itemsStream =
+  CatalogService().watchAvailableItems();
+
   static const _headerColor = Color(0xFF506D54);
   static const _backgroundColor = Color(0xFFF0F5FA);
-  static const _categories = ['Semua', 'Buku', 'Elektronik', 'Fashion'];
+  static const _categories = ['Semua', 'Buku', 'Elektronik', 'Fashion',
+  ];
 
   final _searchController = TextEditingController();
   final Set<String> _savedIds = {};
@@ -81,6 +47,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _retryLoad() {
+    setState(() {
+      _itemsStream = CatalogService().watchAvailableItems();
+    });
   }
 
   void _selectSavedTab(bool showSaved) {
@@ -96,10 +68,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
+
   void _openDetail(CatalogItem item) {
     FocusScope.of(context).unfocus();
 
     final customOpenItem = widget.onOpenItem;
+
     if (customOpenItem != null) {
       customOpenItem(item);
       return;
@@ -107,14 +81,25 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => DetailBarangScreen(
-          item: item,
-          initiallySaved: _savedIds.contains(item.id),
-          onToggleSaved: () => _toggleSaved(item.id),
-        ),
+        builder: (_) {
+          if (widget.items != null) {
+            return DetailBarangScreen(
+              item: item,
+              initiallySaved: _savedIds.contains(item.id),
+              onToggleSaved: () => _toggleSaved(item.id),
+            );
+          }
+
+          return DetailBarangByIdScreen(
+            barangId: item.id,
+            initiallySaved: _savedIds.contains(item.id),
+            onToggleSaved: () => _toggleSaved(item.id),
+          );
+        },
       ),
     );
   }
+
 
   void _openPage(VoidCallback? open, String name) {
     FocusScope.of(context).unfocus();
@@ -127,30 +112,84 @@ class _CatalogScreenState extends State<CatalogScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text('Halaman $name belum terhubung.')),
+        SnackBar(
+          content: Text('Halaman $name belum terhubung.'),
+        ),
       );
   }
 
   @override
   Widget build(BuildContext context) {
+    final providedItems = widget.items;
+
+    if (providedItems != null) {
+      return _buildCatalog(context, providedItems);
+    }
+
+    return StreamBuilder<List<CatalogItem>>(
+      stream: _itemsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildCatalog(
+            context,
+            const [],
+            isLoading: true,
+          );
+        }
+
+        if (snapshot.hasError) {
+          debugPrint(
+            '[KATALOG] Gagal memuat data: ${snapshot.error}',
+          );
+
+          return _buildCatalog(
+            context,
+            const [],
+            hasError: true,
+          );
+        }
+
+        return _buildCatalog(
+          context,
+          snapshot.data ?? const [],
+        );
+      },
+    );
+  }
+
+  Widget _buildCatalog(
+      BuildContext context,
+      List<CatalogItem> items, {
+        bool isLoading = false,
+        bool hasError = false,
+      }) {
     final query = _searchController.text.trim().toLowerCase();
-    final visibleItems = widget.items.where((item) {
-      if (_showSaved) return _savedIds.contains(item.id);
+
+    final visibleItems = items.where((item) {
+      if (_showSaved) {
+        return _savedIds.contains(item.id);
+      }
 
       final matchesCategory =
           _category == 'Semua' || item.category == _category;
 
-      return matchesCategory && item.name.toLowerCase().contains(query);
+      return matchesCategory &&
+          item.name.toLowerCase().contains(query);
     }).toList();
 
-    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final textScale =
+        MediaQuery.textScalerOf(context).scale(14) / 14;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
+
       bottomNavigationBar: CatalogBottomNavigation(
         showingSaved: _showSaved,
+
         onHome: () => _selectSavedTab(false),
+
         onSaved: () => _selectSavedTab(true),
+
         onAdd: () {
           Navigator.push(
             context,
@@ -159,9 +198,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           );
         },
-        onMyItems: () => _openPage(widget.onOpenMyItems, 'Barang Saya'),
-        onProfile: () => _openPage(widget.onOpenProfile, 'Profil'),
+
+        onMyItems: () => _openPage(
+          widget.onOpenMyItems,
+          'Barang Saya',
+        ),
+
+        onProfile: () => _openPage(
+          widget.onOpenProfile,
+          'Profil',
+        ),
       ),
+
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -173,21 +221,33 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 searchController: _searchController,
                 onSearchChanged: (_) => setState(() {}),
               ),
+
             Expanded(
               child: CustomScrollView(
                 key: PageStorageKey<String>(
-                  _showSaved ? 'saved-items' : 'catalog-items',
+                  _showSaved
+                      ? 'saved-items'
+                      : 'catalog-items',
                 ),
+
                 keyboardDismissBehavior:
                 ScrollViewKeyboardDismissBehavior.onDrag,
+
                 slivers: [
                   if (_showSaved)
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+                        padding: const EdgeInsets.fromLTRB(
+                          16,
+                          18,
+                          16,
+                          12,
+                        ),
                         child: Text(
                           'Barang Tersimpan',
-                          style: Theme.of(context).textTheme.titleLarge,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge,
                         ),
                       ),
                     )
@@ -195,19 +255,29 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     SliverToBoxAdapter(
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                        padding: const EdgeInsets.fromLTRB(
+                          16,
+                          10,
+                          16,
+                          6,
+                        ),
                         child: Row(
                           children: [
                             for (final category in _categories)
                               Padding(
-                                padding: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.only(
+                                  right: 8,
+                                ),
                                 child: ChoiceChip(
                                   label: Text(category),
                                   selected: _category == category,
-                                  selectedColor: const Color(0xFFE1ECE1),
+                                  selectedColor:
+                                  const Color(0xFFE1ECE1),
                                   backgroundColor: Colors.white,
                                   onSelected: (_) {
-                                    setState(() => _category = category);
+                                    setState(
+                                          () => _category = category,
+                                    );
                                   },
                                 ),
                               ),
@@ -215,43 +285,99 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         ),
                       ),
                     ),
-                  if (visibleItems.isEmpty)
-                    SliverFillRemaining(
+
+                  if (isLoading)
+                    const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(
-                        child: Text(
-                          _showSaved
-                              ? 'Belum ada barang tersimpan.'
-                              : 'Barang tidak ditemukan.',
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF506D54),
                         ),
                       ),
                     )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: textScale > 1.4 ? 360 : 220,
-                          mainAxisExtent: 148.0 + 145.0 * textScale,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                            final item = visibleItems[index];
+                  else if (hasError)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: _headerColor,
+                            ),
 
-                            return ProductCard(
-                              key: ValueKey(item.id),
-                              item: item,
-                              isSaved: _savedIds.contains(item.id),
-                              onTap: () => _openDetail(item),
-                              onToggleSaved: () => _toggleSaved(item.id),
-                            );
-                          },
-                          childCount: visibleItems.length,
+                            const SizedBox(height: 12),
+
+                            const Text(
+                              'Gagal memuat data barang.',
+                              textAlign: TextAlign.center,
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            TextButton(
+                              onPressed: _retryLoad,
+                              child: const Text('Coba lagi'),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                    )
+                  else if (visibleItems.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(
+                            _showSaved
+                                ? 'Belum ada barang tersimpan.'
+                                : items.isEmpty
+                                ? 'Belum ada barang tersedia.'
+                                : 'Barang tidak ditemukan.',
+                          ),
+                        ),
+                      )
+
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                          16, 4, 16, 20,
+                        ),
+
+                        sliver: SliverGrid(
+                          gridDelegate:
+                          SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent:
+                            textScale > 1.4 ? 360 : 220,
+
+                            mainAxisExtent:
+                            148.0 + 145.0 * textScale,
+
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                          ),
+
+                          delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                              final item = visibleItems[index];
+
+                              return ProductCard(
+                                key: ValueKey(item.id),
+                                item: item,
+                                isSaved: _savedIds.contains(item.id),
+
+                                onTap: () => _openDetail(item),
+
+                                onToggleSaved: () =>
+                                    _toggleSaved(item.id),
+                              );
+                            },
+
+                            childCount: visibleItems.length,
+                          ),
+                        ),
+                      ),
                 ],
               ),
             ),
@@ -278,7 +404,10 @@ class _CatalogHeader extends StatelessWidget {
     return ColoredBox(
       color: backgroundColor,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.fromLTRB(
+          16, 12, 16, 16,
+        ),
+
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -289,32 +418,45 @@ class _CatalogHeader extends StatelessWidget {
                   width: 26,
                   height: 26,
                   excludeFromSemantics: true,
-                  errorBuilder: (_, error, stackTrace) => const Icon(
+
+                  errorBuilder: (_, error, stackTrace) =>
+                  const Icon(
                     Icons.inventory_2_outlined,
                     color: Colors.white,
                   ),
                 ),
+
                 const SizedBox(width: 8),
+
                 Text(
                   'Titipin',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 10),
+
             TextField(
               controller: searchController,
               onChanged: onSearchChanged,
               textInputAction: TextInputAction.search,
+
               decoration: InputDecoration(
                 hintText: 'Cari nama barang...',
+
                 prefixIcon: const Icon(Icons.search),
+
                 isDense: true,
                 filled: true,
                 fillColor: Colors.white,
+
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none,
