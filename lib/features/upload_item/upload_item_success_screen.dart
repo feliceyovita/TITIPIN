@@ -1,9 +1,28 @@
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../catalog/catalog_screen.dart';
+import 'upload_item_screen.dart';
+
 class UploadItemSuccessScreen extends StatelessWidget {
   const UploadItemSuccessScreen({super.key});
+
+  void _kembaliKeKatalog(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const CatalogScreen(),
+      ),
+          (route) => false,
+    );
+  }
+
+  void _unggahBarangBaru(BuildContext context) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => const UploadItemScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +37,7 @@ class UploadItemSuccessScreen extends StatelessWidget {
         body: SafeArea(
           child: Stack(
             children: [
-              // Header
+
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -39,7 +58,6 @@ class UploadItemSuccessScreen extends StatelessWidget {
                 ),
               ),
 
-              // Notifikasi berhasil
               Positioned(
                 top: 55,
                 left: 8,
@@ -53,15 +71,16 @@ class UploadItemSuccessScreen extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_outline,
-                          color: Colors.white),
+                      Icon(Icons.check_circle_outline, color: Colors.white),
                       SizedBox(width: 10),
-                      Text(
-                        'Barang berhasil diunggah!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                      Flexible(
+                        child: Text(
+                          'Barang berhasil diunggah!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -69,7 +88,6 @@ class UploadItemSuccessScreen extends StatelessWidget {
                 ),
               ),
 
-              // Tombol bawah
               Positioned(
                 left: 0,
                 right: 0,
@@ -88,11 +106,13 @@ class UploadItemSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Align(
                         alignment: Alignment.centerLeft,
                         child: IconButton(
-                          onPressed: () => Navigator.pop(context),
+                          tooltip: 'Kembali ke katalog',
+                          onPressed: () => _kembaliKeKatalog(context),
                           icon: const Icon(Icons.close, color: Colors.white),
                         ),
                       ),
@@ -119,13 +139,10 @@ class UploadItemSuccessScreen extends StatelessWidget {
                           color: Colors.white24,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(
-                          Icons.upload,
-                          color: Colors.white,
-                        ),
+                        child: const Icon(Icons.upload, color: Colors.white),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => _unggahBarangBaru(context),
                         child: const Text(
                           'Mulai Unggah',
                           style: TextStyle(
