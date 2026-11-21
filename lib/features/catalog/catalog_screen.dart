@@ -95,6 +95,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
+  // cek apakah barang cocok sama kata kunci
+  // dicari dari nama barang, nama kategori, dan tag barang
+  bool _cocokDenganKeyword(CatalogItem item) {
+    if (_keyword.isEmpty) return true;
+
+    final cocokNama = item.name.toLowerCase().contains(_keyword);
+    final cocokKategori = item.category.toLowerCase().contains(_keyword);
+    final cocokTag = item.tags.any(
+          (tag) => tag.toLowerCase().contains(_keyword),
+    );
+
+    return cocokNama || cocokKategori || cocokTag;
+  }
+
   void _retryLoad() {
     setState(() {
       _itemsStream = CatalogService().watchAvailableItems();
@@ -217,8 +231,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       final matchesCategory =
           _category == 'Semua' || item.category == _category;
 
-      return matchesCategory &&
-          item.name.toLowerCase().contains(_keyword);
+      return matchesCategory && _cocokDenganKeyword(item);
     }).toList();
 
     final textScale =
@@ -544,7 +557,7 @@ class _CatalogHeader extends StatelessWidget {
               textInputAction: TextInputAction.search,
 
               decoration: InputDecoration(
-                hintText: 'Cari nama barang...',
+                hintText: 'Cari nama, kategori, atau tag...',
 
                 prefixIcon: const Icon(Icons.search),
 

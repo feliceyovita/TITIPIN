@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CatalogItem {
@@ -19,6 +18,7 @@ class CatalogItem {
     this.status = 'tersedia',
     this.userId = '',
     this.fotoBarang = const [],
+    this.tags = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -43,6 +43,7 @@ class CatalogItem {
   final String status;
   final String userId;
   final List<Map<String, dynamic>> fotoBarang;
+  final List<String> tags;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
 
@@ -67,6 +68,8 @@ class CatalogItem {
       fotoBarang: (data['fotoBarang'] as List? ?? [])
           .whereType<Map<String, dynamic>>()
           .toList(),
+      // tags disimpan sebagai list string waktu unggah barang
+      tags: (data['tags'] as List? ?? []).whereType<String>().toList(),
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
       sellerName: sellerName,

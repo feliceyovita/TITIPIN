@@ -1,11 +1,9 @@
 import '../catalog_item.dart';
 
-// data dummy buat testing halaman pencarian (screenshot & video trello)
-// cara pakai: ganti `const CatalogScreen()` jadi
-// `const CatalogScreen(items: dummyCatalogItems)`
 const dummyCatalogItems = <CatalogItem>[
   CatalogItem(
     id: 'dummy-1',
+    tags: ['kalkulator', 'casio', 'kuliah'],
     name: 'Calculator Casio FX-991EX',
     price: 120000,
     category: 'Elektronik',
@@ -17,6 +15,7 @@ const dummyCatalogItems = <CatalogItem>[
   ),
   CatalogItem(
     id: 'dummy-2',
+    tags: ['kalkulator', 'casio'],
     name: 'Kalkulator Casio MX-12B',
     price: 45000,
     category: 'Elektronik',
@@ -28,6 +27,7 @@ const dummyCatalogItems = <CatalogItem>[
   ),
   CatalogItem(
     id: 'dummy-3',
+    tags: ['kalkulus', 'matematika', 'kuliah'],
     name: 'Buku Kalkulus Purcell Jilid 1',
     price: 60000,
     category: 'Buku',
@@ -39,6 +39,7 @@ const dummyCatalogItems = <CatalogItem>[
   ),
   CatalogItem(
     id: 'dummy-4',
+    tags: ['headset', 'sony', 'audio'],
     name: 'Headset Sony MDR-ZX110',
     price: 85000,
     category: 'Elektronik',
@@ -50,6 +51,7 @@ const dummyCatalogItems = <CatalogItem>[
   ),
   CatalogItem(
     id: 'dummy-5',
+    tags: ['jaket', 'hoodie', 'pakaian'],
     name: 'Jaket Hoodie Hitam',
     price: 75000,
     category: 'Fashion',
