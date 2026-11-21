@@ -1,3 +1,4 @@
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:titipin/features/catalog/widgets/catalog_bottom_navigation.dart';
@@ -43,10 +44,55 @@ class _CatalogScreenState extends State<CatalogScreen> {
   String _category = 'Semua';
   bool _showSaved = false;
 
+  // untuk fitur pencarian
+  Timer? _debounce;
+  String _keyword = '';
+  bool _isSearching = false;
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  // dipanggil tiap kali user ngetik di kolom search
+  // pakai jeda 500ms biar ga langsung filter tiap huruf
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+
+    if (value.trim().isEmpty) {
+      _clearSearch();
+      return;
+    }
+
+    setState(() => _isSearching = true);
+
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      setState(() {
+        _keyword = value.trim().toLowerCase();
+        _isSearching = false;
+      });
+    });
+  }
+
+  // kalau user tekan enter/search di keyboard, langsung cari
+  void _onSearchSubmitted(String value) {
+    _debounce?.cancel();
+    setState(() {
+      _keyword = value.trim().toLowerCase();
+      _isSearching = false;
+    });
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _keyword = '';
+      _isSearching = false;
+    });
   }
 
   void _retryLoad() {
@@ -163,8 +209,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
         bool isLoading = false,
         bool hasError = false,
       }) {
-    final query = _searchController.text.trim().toLowerCase();
-
     final visibleItems = items.where((item) {
       if (_showSaved) {
         return _savedIds.contains(item.id);
@@ -174,7 +218,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           _category == 'Semua' || item.category == _category;
 
       return matchesCategory &&
-          item.name.toLowerCase().contains(query);
+          item.name.toLowerCase().contains(_keyword);
     }).toList();
 
     final textScale =
@@ -219,7 +263,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
               _CatalogHeader(
                 backgroundColor: _headerColor,
                 searchController: _searchController,
-                onSearchChanged: (_) => setState(() {}),
+                onSearchChanged: _onSearchChanged,
+                onSearchSubmitted: _onSearchSubmitted,
+                onClear: _clearSearch,
               ),
 
             Expanded(
@@ -286,7 +332,44 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       ),
                     ),
 
-                  if (isLoading)
+                  // info hasil pencarian
+                  if (!_showSaved &&
+                      _keyword.isNotEmpty &&
+                      visibleItems.isNotEmpty &&
+                      !_isSearching &&
+                      !isLoading &&
+                      !hasError)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                        child: Text(
+                          'Hasil pencarian "${_searchController.text.trim()}" '
+                              '(${visibleItems.length} barang)',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: const Color(0xFF61758F)),
+                        ),
+                      ),
+                    ),
+
+                  if (_isSearching && !_showSaved)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: Color(0xFF506D54),
+                            ),
+                            SizedBox(height: 12),
+                            Text('Mencari barang...'),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (isLoading)
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(
@@ -296,88 +379,95 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       ),
                     )
                   else if (hasError)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 48,
-                              color: _headerColor,
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            const Text(
-                              'Gagal memuat data barang.',
-                              textAlign: TextAlign.center,
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            TextButton(
-                              onPressed: _retryLoad,
-                              child: const Text('Coba lagi'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else if (visibleItems.isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
                         child: Center(
-                          child: Text(
-                            _showSaved
-                                ? 'Belum ada barang tersimpan.'
-                                : items.isEmpty
-                                ? 'Belum ada barang tersedia.'
-                                : 'Barang tidak ditemukan.',
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: _headerColor,
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              const Text(
+                                'Gagal memuat data barang.',
+                                textAlign: TextAlign.center,
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              TextButton(
+                                onPressed: _retryLoad,
+                                child: const Text('Coba lagi'),
+                              ),
+                            ],
                           ),
                         ),
                       )
-
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(
-                          16, 4, 16, 20,
-                        ),
-
-                        sliver: SliverGrid(
-                          gridDelegate:
-                          SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent:
-                            textScale > 1.4 ? 360 : 220,
-
-                            mainAxisExtent:
-                            148.0 + 145.0 * textScale,
-
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
+                    else if (visibleItems.isEmpty && _keyword.isNotEmpty && !_showSaved)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _SearchNotFound(
+                            keyword: _searchController.text.trim(),
                           ),
+                        )
+                      else if (visibleItems.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Text(
+                                _showSaved
+                                    ? 'Belum ada barang tersimpan.'
+                                    : items.isEmpty
+                                    ? 'Belum ada barang tersedia.'
+                                    : 'Barang tidak ditemukan.',
+                              ),
+                            ),
+                          )
 
-                          delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                              final item = visibleItems[index];
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(
+                              16, 4, 16, 20,
+                            ),
 
-                              return ProductCard(
-                                key: ValueKey(item.id),
-                                item: item,
-                                isSaved: _savedIds.contains(item.id),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                              SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent:
+                                textScale > 1.4 ? 360 : 220,
 
-                                onTap: () => _openDetail(item),
+                                mainAxisExtent:
+                                148.0 + 145.0 * textScale,
 
-                                onToggleSaved: () =>
-                                    _toggleSaved(item.id),
-                              );
-                            },
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                              ),
 
-                            childCount: visibleItems.length,
+                              delegate: SliverChildBuilderDelegate(
+                                    (context, index) {
+                                  final item = visibleItems[index];
+
+                                  return ProductCard(
+                                    key: ValueKey(item.id),
+                                    item: item,
+                                    isSaved: _savedIds.contains(item.id),
+
+                                    onTap: () => _openDetail(item),
+
+                                    onToggleSaved: () =>
+                                        _toggleSaved(item.id),
+                                  );
+                                },
+
+                                childCount: visibleItems.length,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                 ],
               ),
             ),
@@ -393,11 +483,15 @@ class _CatalogHeader extends StatelessWidget {
     required this.backgroundColor,
     required this.searchController,
     required this.onSearchChanged,
+    required this.onSearchSubmitted,
+    required this.onClear,
   });
 
   final Color backgroundColor;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onSearchSubmitted;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -446,12 +540,28 @@ class _CatalogHeader extends StatelessWidget {
             TextField(
               controller: searchController,
               onChanged: onSearchChanged,
+              onSubmitted: onSearchSubmitted,
               textInputAction: TextInputAction.search,
 
               decoration: InputDecoration(
                 hintText: 'Cari nama barang...',
 
                 prefixIcon: const Icon(Icons.search),
+
+                // tombol X cuma muncul kalau kolom search ada isinya
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: searchController,
+                  builder: (context, value, child) {
+                    if (value.text.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return IconButton(
+                      tooltip: 'Hapus kata kunci',
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: onClear,
+                    );
+                  },
+                ),
 
                 isDense: true,
                 filled: true,
@@ -465,6 +575,55 @@ class _CatalogHeader extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// tampilan kalau barang yang dicari ga ketemu
+class _SearchNotFound extends StatelessWidget {
+  const _SearchNotFound({
+    required this.keyword,
+  });
+
+  final String keyword;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/images/catalog/box_mascot.png',
+            width: 110,
+            height: 110,
+            errorBuilder: (_, error, stackTrace) => const Icon(
+              Icons.search_off_rounded,
+              size: 64,
+              color: Color(0xFF506D54),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Barang tidak ditemukan',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tidak ada barang dengan kata kunci "$keyword". '
+                'Coba pakai kata kunci lain atau ganti kategori.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: const Color(0xFF61758F)),
+          ),
+        ],
       ),
     );
   }

@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Titipin butuh akses kamera untuk memotret barang yang mau diunggah.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Titipin butuh akses galeri untuk memilih foto barang.</string>
 </dict>
 </plist>
