@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dotted_border/dotted_border.dart';
+import '../../core/constants/kategori_barang.dart';
 import '../catalog/catalog_screen.dart';
 import 'data/upload_barang_service.dart';
 
@@ -39,7 +40,6 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
   final blue = const Color(0xFF4895F7);
   final textColor = const Color(0xFF61758F);
 
-  final categories = ['Elektronik', 'Buku', 'Fashion', 'Peralatan', 'Lainnya'];
   final statuses = ['Baru', 'Bekas'];
   final conditions = ['Tanpa minus', 'Ada minus'];
 
@@ -419,6 +419,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     final parsedPrice = validPrice
         ? int.tryParse(rawPrice.replaceAll('.', ''))
         : null;
+    final kategoriId = kategoriBarang[category];
 
     // Tag yang masih diketik tanpa menekan (+) tetap dianggap sebagai tag.
     final allTags = List<String>.of(tags);
@@ -445,7 +446,8 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     if (!formulirValid ||
         _photoError != null ||
         _tagError != null ||
-        parsedPrice == null) {
+        parsedPrice == null ||
+        kategoriId == null) {
       // Kembali ke awal agar pengguna langsung melihat pesan validasi.
       if (_scrollController.hasClients) {
         await _scrollController.animateTo(
@@ -461,8 +463,8 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     try {
       final barangId = await _uploadService.unggahBarang(
         namaBarang: name.text,
-        harga: parsedPrice!,
-        kategoriId: category!.toLowerCase(),
+        harga: parsedPrice,
+        kategoriId: kategoriId,
         jenisKondisi: status!,
         tingkatKondisi: condition!,
         detailMinus: detailMinus.text,
@@ -627,7 +629,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                         dropdown(
                           'Pilih Kategori',
                           category,
-                          categories,
+                          kategoriBarang.keys.toList(),
                               (v) => setState(() => category = v),
                           pesanKosong: 'Kategori barang wajib dipilih.',
                         ),
@@ -768,7 +770,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                 child: ElevatedButton(
                   onPressed: _isUploading ? null : publish,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: blue,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -791,7 +793,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                     ],
                   )
                       : const Text(
-                    'Upload Barang',
+                    'Unggah Barang',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,

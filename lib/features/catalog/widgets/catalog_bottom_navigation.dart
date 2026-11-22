@@ -9,6 +9,7 @@ class CatalogBottomNavigation extends StatelessWidget {
   const CatalogBottomNavigation({
     super.key,
     required this.showingSaved,
+    this.showingMyItems = false,
     required this.onHome,
     required this.onSaved,
     required this.onAdd,
@@ -17,6 +18,7 @@ class CatalogBottomNavigation extends StatelessWidget {
   });
 
   final bool showingSaved;
+  final bool showingMyItems;
   final VoidCallback onHome;
   final VoidCallback onSaved;
   final VoidCallback onAdd;
@@ -41,7 +43,7 @@ class CatalogBottomNavigation extends StatelessWidget {
                   child: _NavigationItem(
                     icon: Icons.home_outlined,
                     label: 'Beranda',
-                    selected: !showingSaved,
+                    selected: !showingSaved && !showingMyItems,
                     onTap: onHome,
                   ),
                 ),
@@ -49,7 +51,7 @@ class CatalogBottomNavigation extends StatelessWidget {
                   child: _NavigationItem(
                     icon: Icons.favorite_border,
                     label: 'Simpan',
-                    selected: showingSaved,
+                    selected: showingSaved && !showingMyItems,
                     onTap: onSaved,
                   ),
                 ),
@@ -73,6 +75,7 @@ class CatalogBottomNavigation extends StatelessWidget {
                   child: _NavigationItem(
                     icon: Icons.inventory_2_outlined,
                     label: 'Barang Saya',
+                    selected: showingMyItems,
                     onTap: onMyItems,
                   ),
                 ),
@@ -138,7 +141,7 @@ class _NavigationItem extends StatelessWidget {
                         color: color,
                         fontSize: 11,
                         fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w500,
+                        selected ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
                   ],

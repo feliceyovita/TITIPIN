@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../auth/register_login/login_screen.dart';
 import '../../catalog/catalog_screen.dart';
 import '../../auth/data/firebase_auth_service.dart';
-import '../../catalog/data/dummy_catalog_items.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -40,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => verifiedSession
-            ? const CatalogScreen(items: dummyCatalogItems)
+            ? const CatalogScreen()
             : const LoginScreen(),
       ),
     );

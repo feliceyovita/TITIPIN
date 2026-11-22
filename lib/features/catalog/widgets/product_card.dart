@@ -11,12 +11,14 @@ class ProductCard extends StatelessWidget {
     required this.isSaved,
     required this.onToggleSaved,
     this.onTap,
+    this.showSaveButton = true,
   });
 
   final CatalogItem item;
   final bool isSaved;
   final VoidCallback onToggleSaved;
   final VoidCallback? onTap;
+  final bool showSaveButton;
 
   static const _accent = Color(0xFF3C6247);
 
@@ -69,20 +71,21 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: isSaved
-                        ? 'Batal simpan'
-                        : 'Simpan barang',
-                    isSelected: isSaved,
-                    selectedIcon: const Icon(
-                      Icons.favorite,
-                      color: Colors.red,
+                  if (showSaveButton)
+                    IconButton(
+                      tooltip: isSaved
+                          ? 'Batal simpan'
+                          : 'Simpan barang',
+                      isSelected: isSaved,
+                      selectedIcon: const Icon(
+                        Icons.favorite,
+                        color: Colors.red,
+                      ),
+                      icon: const Icon(
+                        Icons.favorite_border,
+                      ),
+                      onPressed: onToggleSaved,
                     ),
-                    icon: const Icon(
-                      Icons.favorite_border,
-                    ),
-                    onPressed: onToggleSaved,
-                  ),
                 ],
               ),
 

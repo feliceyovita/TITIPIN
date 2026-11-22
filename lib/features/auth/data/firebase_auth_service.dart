@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// Kesalahan alur autentikasi yang dapat ditampilkan ke pengguna.
 class TitipinAuthException implements Exception {
@@ -94,13 +96,16 @@ class FirebaseAuthService {
       rethrow;
     }
 
-    if (_auth.currentUser?.emailVerified != true) {
+    final verifiedUser = _auth.currentUser;
+    if (verifiedUser == null || !verifiedUser.emailVerified) {
       await _auth.signOut();
       throw const TitipinAuthException(
         'Email belum diverifikasi. Klik tautan verifikasi dari Firebase '
             'di kotak masuk atau spam, lalu coba login kembali.',
       );
     }
+
+    await _syncVerifiedSellerProfile(verifiedUser);
   }
 
   /// Firebase Auth menyimpan sesi di Android; reload menyegarkan status verifikasi.
@@ -132,7 +137,28 @@ class FirebaseAuthService {
       await _auth.signOut();
       return false;
     }
+    await _syncVerifiedSellerProfile(refreshed);
     return true;
+  }
+
+  Future<void> _syncVerifiedSellerProfile(User user) async {
+    if (!user.emailVerified || !isUsuEmail(user.email ?? '')) return;
+
+    final name = user.displayName?.trim();
+    try {
+      await user.getIdToken(true);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('public')
+          .doc('profile')
+          .set({
+        if (name != null && name.isNotEmpty) 'nama': name,
+        'isSellerVerified': true,
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (error) {
+      debugPrint('[AUTH] Gagal menyinkronkan profil penjual (${error.code}).');
+    }
   }
 
   Future<void> logout() => _auth.signOut();

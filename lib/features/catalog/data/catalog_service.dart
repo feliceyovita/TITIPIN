@@ -7,13 +7,23 @@ class CatalogService {
       FirebaseFirestore.instance;
 
   Stream<List<CatalogItem>> watchAvailableItems() {
-    return _firestore
-        .collection('barang')
-        .where('statusBarang', isEqualTo: 'tersedia')
-        .snapshots()
-        .asyncMap((snapshot) async {
-      final kategoriSnapshot =
-      await _firestore.collection('kategori').get();
+    return _watchItems(
+      _firestore.collection('barang').where(
+        'statusBarang',
+        isEqualTo: 'tersedia',
+      ),
+    );
+  }
+
+  Stream<List<CatalogItem>> watchMyItems(String userId) {
+    return _watchItems(
+      _firestore.collection('barang').where('userId', isEqualTo: userId),
+    );
+  }
+
+  Stream<List<CatalogItem>> _watchItems(Query<Map<String, dynamic>> query) {
+    return query.snapshots().asyncMap((snapshot) async {
+      final kategoriSnapshot = await _firestore.collection('kategori').get();
 
       final kategoriMap = <String, String>{
         for (final doc in kategoriSnapshot.docs)
@@ -90,6 +100,7 @@ class CatalogService {
         categoryName: namaKategori,
         sellerName: sellerName,
         sellerPhone: sellerPhone,
+        isSellerVerified: seller?['isSellerVerified'] == true,
       );
     });
   }
