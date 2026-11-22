@@ -1,19 +1,35 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../catalog_item.dart';
+import 'package:flutter/foundation.dart';
 
 class CatalogService {
   final FirebaseFirestore _firestore =
       FirebaseFirestore.instance;
 
   Stream<List<CatalogItem>> watchAvailableItems() {
-    return _firestore
-        .collection('barang')
-        .where('statusBarang', isEqualTo: 'tersedia')
-        .snapshots()
-        .asyncMap((snapshot) async {
-      final kategoriSnapshot =
-      await _firestore.collection('kategori').get();
+    return _watchItems(
+      _firestore.collection('barang').where(
+        'statusBarang',
+        isEqualTo: 'tersedia',
+      ),
+    );
+  }
+
+  Stream<List<CatalogItem>> watchMyItems(String userId) {
+    return _watchItems(
+      _firestore.collection('barang').where(
+        'userId',
+        isEqualTo: userId,
+      ),
+    );
+  }
+
+  Stream<List<CatalogItem>> _watchItems(
+      Query<Map<String, dynamic>> query,
+      ) {
+    return query.snapshots().asyncMap((snapshot) async {
+      final kategoriSnapshot = await _firestore.collection('kategori').get();
 
       final kategoriMap = <String, String>{
         for (final doc in kategoriSnapshot.docs)
@@ -27,27 +43,23 @@ class CatalogService {
         return CatalogItem.fromFirestore(
           doc.id,
           data,
-          categoryName: kategoriMap[kategoriId] ??
-              'Kategori tidak tersedia',
+          categoryName: kategoriMap[kategoriId] ?? 'Kategori tidak tersedia',
         );
       }).toList();
     });
   }
 
-  Future<Map<String, dynamic>?> getSellerProfile(
-      String userId,
-      ) async {
-    if (userId.trim().isEmpty) {
-      return null;
-    }
+  Future<Map<String, dynamic>?> getSellerProfile(String userId) async {
+    if (userId.trim().isEmpty) return null;
 
     final sellerSnapshot = await _firestore
         .collection('users')
         .doc(userId)
         .collection('public')
         .doc('profile')
-        .get();
+        .get(const GetOptions(source: Source.server));
 
+    debugPrint('Profil penjual: ${sellerSnapshot.data()} | fromCache=${sellerSnapshot.metadata.isFromCache}');
     return sellerSnapshot.data();
   }
 
@@ -79,6 +91,8 @@ class CatalogService {
 
       final userId = data['userId'] as String;
       final seller = await getSellerProfile(userId);
+      final verified = seller?['isSellerVerified'];
+      debugPrint('Penjual $userId | verifikasi=$verified | tipe=${verified.runtimeType}');
 
       final sellerName = seller?['nama'] as String?;
       final sellerPhone =
@@ -90,6 +104,7 @@ class CatalogService {
         categoryName: namaKategori,
         sellerName: sellerName,
         sellerPhone: sellerPhone,
+        isSellerVerified: seller?['isSellerVerified'] == true,
       );
     });
   }
