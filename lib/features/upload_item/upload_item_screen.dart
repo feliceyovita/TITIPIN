@@ -67,7 +67,69 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     super.dispose();
   }
 
-  Future<void> pickImage() async {
+  // Memilih sumber foto tanpa mengubah mekanisme unggah Cloudinary.
+  Future<void> _pilihSumberFoto() async {
+    if (_isUploading) return;
+
+    if (images.length >= UploadBarangService.maxFoto) {
+      setState(() => _photoError = 'Maksimal 5 foto per barang.');
+      return;
+    }
+
+    final sumber = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Pilih Sumber Foto',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_camera_outlined,
+                  color: Color(0xFF4895F7),
+                ),
+                title: const Text('Ambil Foto'),
+                subtitle: const Text('Gunakan kamera HP'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_outlined,
+                  color: Color(0xFF4895F7),
+                ),
+                title: const Text('Pilih dari Galeri'),
+                subtitle: const Text('Pilih satu atau beberapa foto'),
+                onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!mounted || sumber == null) return;
+    if (sumber == ImageSource.camera) {
+      await _ambilFotoKamera();
+    } else {
+      await pickImage();
+    }
+  }
+
+  // Kamera menghasilkan satu foto, sedangkan galeri dapat memilih banyak.
+  Future<void> _ambilFotoKamera() async {
     if (_isUploading) return;
 
     try {
@@ -103,18 +165,71 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
 
         accepted.add(image);
       }
+      final foto = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (!mounted || foto == null) return;
+      await _tambahkanFoto([foto]);
+    } catch (e) {
+      if (mounted) _showMessage('Kamera tidak dapat dibuka: $e');
+    }
+  }
 
-      if (!mounted) return;
-      setState(() {
-        if (accepted.isNotEmpty) images.addAll(accepted);
-        _photoError = warning;
-        if (_sudahMencobaUnggah && images.isEmpty) {
-          _photoError ??= 'Foto barang tidak boleh kosong.';
-        }
-      });
+  // Fungsi galeri lama tetap tersedia.
+  Future<void> pickImage() async {
+    if (_isUploading) return;
+
+    try {
+      final hasil = await picker.pickMultiImage(imageQuality: 85);
+      if (!mounted || hasil.isEmpty) return;
+      await _tambahkanFoto(hasil);
     } catch (e) {
       if (mounted) _showMessage('Gagal memilih foto: $e');
     }
+  }
+
+  // Kedua sumber melewati validasi yang sama sebelum foto dimasukkan.
+  Future<void> _tambahkanFoto(List<XFile> fotoBaru) async {
+    final accepted = <XFile>[];
+    String? warning;
+
+    for (final foto in fotoBaru) {
+      if (images.length + accepted.length >= UploadBarangService.maxFoto) {
+        warning = 'Maksimal 5 foto per barang.';
+        break;
+      }
+
+      final bagianNama = foto.name.split('.');
+      final ekstensi = bagianNama.length > 1
+          ? bagianNama.last.toLowerCase()
+          : '';
+      if (!{'jpg', 'jpeg', 'png', 'webp'}.contains(ekstensi)) {
+        warning = 'Foto hanya boleh JPG, JPEG, PNG, atau WebP.';
+        continue;
+      }
+
+      final ukuran = await foto.length();
+      if (ukuran == 0 || ukuran > UploadBarangService.maxUkuranFoto) {
+        warning = 'Ukuran tiap foto maksimal 5 MB.';
+        continue;
+      }
+
+      if (images.any((item) => item.path == foto.path) ||
+          accepted.any((item) => item.path == foto.path)) {
+        continue;
+      }
+      accepted.add(foto);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      images.addAll(accepted);
+      _photoError = warning;
+      if (_sudahMencobaUnggah && images.isEmpty) {
+        _photoError ??= 'Foto barang tidak boleh kosong.';
+      }
+    });
   }
 
   void _showMessage(String message) {
@@ -458,7 +573,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
               // Foto barang
               Center(
                 child: InkWell(
-                  onTap: _isUploading ? null : pickImage,
+                  onTap: _isUploading ? null : _pilihSumberFoto,
                   child: DottedBorder(
                     color: _photoError != null
                         ? Colors.red
