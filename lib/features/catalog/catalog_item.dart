@@ -52,6 +52,7 @@ class CatalogItem {
         required String categoryName,
         String? sellerName,
         String? sellerPhone,
+        bool isSellerVerified = false,
       }) {
     return CatalogItem(
       id: documentId,
@@ -71,6 +72,7 @@ class CatalogItem {
       updatedAt: data['updatedAt'] as Timestamp?,
       sellerName: sellerName,
       sellerPhone: sellerPhone,
+      isSellerVerified: isSellerVerified,
     );
   }
   List<String> get galleryAssets {

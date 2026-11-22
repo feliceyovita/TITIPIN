@@ -92,6 +92,7 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    debugPrint('Barang ${item.id}: isSellerVerified=${item.isSellerVerified}');
     final photos = item.galleryPhotoSources;
     final theme = Theme.of(context).textTheme;
 

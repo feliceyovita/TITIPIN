@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../catalog_item.dart';
@@ -11,12 +10,14 @@ class ProductCard extends StatelessWidget {
     required this.isSaved,
     required this.onToggleSaved,
     this.onTap,
+    this.showSaveButton = true,
   });
 
   final CatalogItem item;
   final bool isSaved;
   final VoidCallback onToggleSaved;
   final VoidCallback? onTap;
+  final bool showSaveButton;
 
   static const _accent = Color(0xFF3C6247);
 
@@ -31,9 +32,7 @@ class ProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(
-          color: Color(0xFFD9E6F2),
-        ),
+        side: const BorderSide(color: Color(0xFFD9E6F2)),
       ),
       child: InkWell(
         onTap: onTap,
@@ -42,7 +41,6 @@ class ProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Menampilkan foto barang dari Cloudinary
               Expanded(
                 child: SizedBox(
                   width: double.infinity,
@@ -53,10 +51,7 @@ class ProductCard extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 4),
-
-              // Nama barang dan tombol simpan
               Row(
                 children: [
                   Expanded(
@@ -69,24 +64,19 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: isSaved
-                        ? 'Batal simpan'
-                        : 'Simpan barang',
-                    isSelected: isSaved,
-                    selectedIcon: const Icon(
-                      Icons.favorite,
-                      color: Colors.red,
+                  if (showSaveButton)
+                    IconButton(
+                      tooltip: isSaved ? 'Batal simpan' : 'Simpan barang',
+                      isSelected: isSaved,
+                      selectedIcon: const Icon(
+                        Icons.favorite,
+                        color: Colors.red,
+                      ),
+                      icon: const Icon(Icons.favorite_border),
+                      onPressed: onToggleSaved,
                     ),
-                    icon: const Icon(
-                      Icons.favorite_border,
-                    ),
-                    onPressed: onToggleSaved,
-                  ),
                 ],
               ),
-
-              // Harga barang
               Text(
                 item.formattedPrice,
                 maxLines: 1,
@@ -96,10 +86,7 @@ class ProductCard extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 5),
-
-              // Kategori barang
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: const Color(0xFFE1ECE1),
@@ -114,15 +101,11 @@ class ProductCard extends StatelessWidget {
                     item.category,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(
-                      color: _accent,
-                    ),
+                    style: textTheme.labelSmall?.copyWith(color: _accent),
                   ),
                 ),
               ),
-
               const SizedBox(height: 4),
-
               Text(
                 item.condition,
                 maxLines: 1,
