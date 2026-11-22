@@ -1,8 +1,10 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dotted_border/dotted_border.dart';
+
 import '../catalog/catalog_screen.dart';
 import 'data/upload_barang_service.dart';
 
@@ -36,10 +38,20 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
   final UploadBarangService _uploadService = UploadBarangService();
   bool _isUploading = false;
 
-  final blue = const Color(0xFF4895F7);
+  static const _baseColor = Color(0xFF506D54);
   final textColor = const Color(0xFF61758F);
 
-  final categories = ['Elektronik', 'Buku', 'Fashion', 'Peralatan', 'Lainnya'];
+  static const categories = <String, String>{
+    'Buku': 'buku',
+    'Elektronik': 'elektronik',
+    'Fashion': 'fashion',
+    'Kecantikan': 'kecantikan',
+    'Perlengkapan Kuliah': 'perlengkapan-kuliah',
+    'Perlengkapan Kos': 'peralatan',
+    'Olahraga & Hobi': 'olahraga-hobi',
+    'Lainnya': 'lainnya',
+  };
+
   final statuses = ['Baru', 'Bekas'];
   final conditions = ['Tanpa minus', 'Ada minus'];
 
@@ -77,15 +89,18 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
           warning = 'Foto hanya boleh JPG, JPEG, PNG, atau WebP.';
           continue;
         }
+
         final size = await image.length();
         if (size == 0 || size > UploadBarangService.maxUkuranFoto) {
           warning = 'Ukuran tiap foto maksimal 5 MB.';
           continue;
         }
+
         if (images.any((existing) => existing.path == image.path) ||
             accepted.any((existing) => existing.path == image.path)) {
           continue;
         }
+
         accepted.add(image);
       }
 
@@ -125,9 +140,14 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
 
   Widget label(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: TextStyle(
-      fontSize: 14, fontWeight: FontWeight.bold, color: textColor,
-    )),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+        color: textColor,
+      ),
+    ),
   );
 
   // Pesan error ditampilkan tepat di bawah kotak input.
@@ -216,8 +236,10 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
   String? _validasiHarga(String? value) {
     final text = (value ?? '').trim();
     if (text.isEmpty) return 'Harga barang tidak boleh kosong.';
+
     final formatBenar = RegExp(r'^(\d+|\d{1,3}(\.\d{3})+)$').hasMatch(text);
     if (!formatBenar) return 'Harga harus berupa angka, contoh: 80000.';
+
     final angka = int.tryParse(text.replaceAll('.', ''));
     if (angka == null || angka <= 0) {
       return 'Harga barang harus lebih dari Rp0.';
@@ -310,6 +332,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
         // FormState baru mencegah nilai dropdown lama muncul lagi.
         _formKey = GlobalKey<FormState>();
       });
+
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -328,11 +351,11 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
 
     // Mendukung angka biasa (120000) maupun pemisah ribuan (120.000).
     final rawPrice = price.text.trim();
-    final validPrice = RegExp(r'^(\d+|\d{1,3}(\.\d{3})+)$')
-        .hasMatch(rawPrice);
+    final validPrice = RegExp(r'^(\d+|\d{1,3}(\.\d{3})+)$').hasMatch(rawPrice);
     final parsedPrice = validPrice
         ? int.tryParse(rawPrice.replaceAll('.', ''))
         : null;
+    final kategoriId = categories[category];
 
     // Tag yang masih diketik tanpa menekan (+) tetap dianggap sebagai tag.
     final allTags = List<String>.of(tags);
@@ -359,7 +382,8 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     if (!formulirValid ||
         _photoError != null ||
         _tagError != null ||
-        parsedPrice == null) {
+        parsedPrice == null ||
+        kategoriId == null) {
       // Kembali ke awal agar pengguna langsung melihat pesan validasi.
       if (_scrollController.hasClients) {
         await _scrollController.animateTo(
@@ -375,8 +399,8 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
     try {
       final barangId = await _uploadService.unggahBarang(
         namaBarang: name.text,
-        harga: parsedPrice!,
-        kategoriId: category!.toLowerCase(),
+        harga: parsedPrice,
+        kategoriId: kategoriId,
         jenisKondisi: status!,
         tingkatKondisi: condition!,
         detailMinus: detailMinus.text,
@@ -416,9 +440,14 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
           elevation: 0,
           centerTitle: true,
           iconTheme: IconThemeData(color: textColor),
-          title: Text('Unggah Barang', style: TextStyle(
-            fontSize: 16, fontWeight: FontWeight.bold, color: textColor,
-          )),
+          title: Text(
+            'Unggah Barang',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
         ),
         body: AbsorbPointer(
           absorbing: _isUploading,
@@ -445,12 +474,16 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.camera_alt_outlined,
-                              color: Color(0xFF699C7B)),
+                          const Icon(
+                            Icons.camera_alt_outlined,
+                            color: Color(0xFF699C7B),
+                          ),
                           const SizedBox(height: 5),
-                          Text('Maks.5MB\nper Gambar',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 8, color: textColor)),
+                          Text(
+                            'Maks.5MB\nper Gambar',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 8, color: textColor),
+                          ),
                         ],
                       ),
                     ),
@@ -475,30 +508,37 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                   height: 75,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    children: images.asMap().entries.map((e) => Stack(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(File(e.value.path),
-                                width: 75, height: 75, fit: BoxFit.cover),
+                    children: images.asMap().entries.map((e) {
+                      return Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(e.value.path),
+                                width: 75,
+                                height: 75,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           ),
-                        ),
-                        Positioned(
-                          right: 8,
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              images.removeAt(e.key);
-                              _photoError = _sudahMencobaUnggah && images.isEmpty
-                                  ? 'Foto barang tidak boleh kosong.'
-                                  : null;
-                            }),
-                            child: const Icon(Icons.cancel, color: Colors.red),
+                          Positioned(
+                            right: 8,
+                            child: GestureDetector(
+                              onTap: () => setState(() {
+                                images.removeAt(e.key);
+                                _photoError =
+                                _sudahMencobaUnggah && images.isEmpty
+                                    ? 'Foto barang tidak boleh kosong.'
+                                    : null;
+                              }),
+                              child: const Icon(Icons.cancel, color: Colors.red),
+                            ),
                           ),
-                        ),
-                      ],
-                    )).toList(),
+                        ],
+                      );
+                    }).toList(),
                   ),
                 ),
               ],
@@ -541,7 +581,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                         dropdown(
                           'Pilih Kategori',
                           category,
-                          categories,
+                          categories.keys.toList(),
                               (v) => setState(() => category = v),
                           pesanKosong: 'Kategori barang wajib dipilih.',
                         ),
@@ -610,8 +650,8 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                                 onChanged: (value) {
                                   if (_sudahMencobaUnggah || _tagError != null) {
                                     setState(() {
-                                      _tagError = tags.isEmpty &&
-                                          value.trim().isEmpty
+                                      _tagError =
+                                      tags.isEmpty && value.trim().isEmpty
                                           ? 'Tags tidak boleh kosong. Tambahkan minimal 1 tag.'
                                           : null;
                                     });
@@ -620,8 +660,10 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                                 style: TextStyle(fontSize: 13, color: textColor),
                                 decoration: InputDecoration(
                                   hintText: 'Tambah Tag...',
-                                  prefixIcon: const Icon(Icons.sell_outlined,
-                                      size: 17),
+                                  prefixIcon: const Icon(
+                                    Icons.sell_outlined,
+                                    size: 17,
+                                  ),
                                   contentPadding: const EdgeInsets.all(10),
                                   errorText: _tagError,
                                   errorStyle: const TextStyle(
@@ -633,7 +675,9 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                                   ),
                                   errorBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Colors.red),
+                                    borderSide: const BorderSide(
+                                      color: Colors.red,
+                                    ),
                                   ),
                                   focusedErrorBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(10),
@@ -656,24 +700,29 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                         if (tags.isNotEmpty)
                           Wrap(
                             spacing: 5,
-                            children: tags.map((tag) => Chip(
-                              label: Text(tag,
-                                  style: const TextStyle(fontSize: 12)),
-                              onDeleted: () => setState(() {
-                                tags.remove(tag);
-                                _tagError = _sudahMencobaUnggah &&
-                                    tags.isEmpty &&
-                                    tagController.text.trim().isEmpty
-                                    ? 'Tags tidak boleh kosong. Tambahkan minimal 1 tag.'
-                                    : null;
-                              }),
-                            )).toList(),
+                            children: tags.map((tag) {
+                              return Chip(
+                                label: Text(
+                                  tag,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                onDeleted: () => setState(() {
+                                  tags.remove(tag);
+                                  _tagError =
+                                  _sudahMencobaUnggah &&
+                                      tags.isEmpty &&
+                                      tagController.text.trim().isEmpty
+                                      ? 'Tags tidak boleh kosong. Tambahkan minimal 1 tag.'
+                                      : null;
+                                }),
+                              );
+                            }).toList(),
                           ),
                       ],
                     ),
                   ),
-                ), // Card
-              ), // Form
+                ),
+              ),
 
               const SizedBox(height: 16),
 
@@ -682,7 +731,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                 child: ElevatedButton(
                   onPressed: _isUploading ? null : publish,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: blue,
+                    backgroundColor: _baseColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -705,7 +754,7 @@ class _UploadItemScreenState extends State<UploadItemScreen> {
                     ],
                   )
                       : const Text(
-                    'Upload Barang',
+                    'Unggah Barang',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
