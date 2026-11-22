@@ -179,23 +179,96 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
   Future<void> _konfirmasiHapus() async {
     FocusScope.of(context).unfocus();
 
+    const warnaHapus = Color(0xFFE91646);
+    const warnaIkon = Color(0xFFFFE1E6);
+    const warnaJudul = Color(0xFF53637A);
+    const warnaDeskripsi = Color(0xFF61758F);
+
     final setuju = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Hapus Barang?'),
-        content: Text('Hapus “${widget.item.name}” dari Barang Saya?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Batal'),
+      builder: (dialogContext) {
+        final bentukTombol = RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        );
+
+        return Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _merah),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Hapus'),
+          child: SizedBox(
+            width: 352,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircleAvatar(
+                    radius: 21,
+                    backgroundColor: warnaIkon,
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: warnaHapus,
+                      size: 25,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Apakah Anda yakin ingin menghapus barang ini?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: warnaJudul,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Tindakan ini tidak dapat dibatalkan.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: warnaDeskripsi,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: 156,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: warnaHapus,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: bentukTombol,
+                          ),
+                          child: const Text('Hapus Barang'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: warnaJudul,
+                            minimumSize: const Size.fromHeight(44),
+                            side: const BorderSide(color: Color(0xFFB0B0B0)),
+                            shape: bentukTombol,
+                          ),
+                          child: const Text('Batal'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
 
     if (!mounted || setuju != true) return;
