@@ -9,7 +9,10 @@ import 'package:image_picker/image_picker.dart';
 /// Kesalahan pada proses unggah. Public ID membantu admin menelusuri
 /// foto yang sudah terunggah ketika proses berikutnya gagal.
 class UploadBarangException implements Exception {
-  const UploadBarangException(this.message, {this.uploadedPublicIds = const []});
+  const UploadBarangException(
+      this.message, {
+        this.uploadedPublicIds = const [],
+      });
 
   final String message;
   final List<String> uploadedPublicIds;
@@ -31,11 +34,15 @@ class UploadBarangService {
   static const _jenisDiizinkan = {'Baru', 'Bekas'};
   static const _kondisiDiizinkan = {'Tanpa minus', 'Ada minus'};
 
+  /// Dipakai juga saat mengganti foto utama pada halaman Edit Barang.
+  Future<Map<String, String>> unggahFotoBarang(XFile foto) async {
+    await _validasiFoto(foto);
+    return _uploadFoto(foto);
+  }
+
   Future<void> _validasiFoto(XFile foto) async {
     final bagianNama = foto.name.split('.');
-    final ekstensi = bagianNama.length > 1
-        ? bagianNama.last.toLowerCase()
-        : '';
+    final ekstensi = bagianNama.length > 1 ? bagianNama.last.toLowerCase() : '';
 
     if (!_formatDiizinkan.contains(ekstensi)) {
       throw const UploadBarangException(
@@ -65,12 +72,9 @@ class UploadBarangService {
       ),
     );
 
-    final streamed = await request.send().timeout(
-      const Duration(seconds: 60),
-    );
-    final response = await http.Response.fromStream(streamed).timeout(
-      const Duration(seconds: 60),
-    );
+    final streamed = await request.send().timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed)
+        .timeout(const Duration(seconds: 60));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw UploadBarangException(
@@ -143,7 +147,9 @@ class UploadBarangService {
       throw const UploadBarangException('Deskripsi barang tidak boleh kosong.');
     }
     if (deskripsi.trim().length < 10) {
-      throw const UploadBarangException('Deskripsi barang minimal 10 karakter.');
+      throw const UploadBarangException(
+        'Deskripsi barang minimal 10 karakter.',
+      );
     }
     final tagsBersih = tags
         .map((tag) => tag.trim())
@@ -164,7 +170,10 @@ class UploadBarangService {
       await _validasiFoto(foto);
     }
 
-    final kategori = await _firestore.collection('kategori').doc(kategoriId).get();
+    final kategori = await _firestore
+        .collection('kategori')
+        .doc(kategoriId)
+        .get();
     if (!kategori.exists) {
       throw UploadBarangException(
         'Kategori "$kategoriId" belum tersedia di Firestore. '
@@ -183,8 +192,7 @@ class UploadBarangService {
       final keteranganMinus = tingkatKondisi == 'Ada minus'
           ? ': ${detailMinus.trim()}'
           : '';
-      final kondisiTampil =
-          '$jenisKondisi - $tingkatKondisi$keteranganMinus';
+      final kondisiTampil = '$jenisKondisi - $tingkatKondisi$keteranganMinus';
 
       await dokumen.set({
         'barangId': dokumen.id,
@@ -202,9 +210,7 @@ class UploadBarangService {
         // Field tambahan agar semua input formulir tidak hilang.
         'jenisKondisi': jenisKondisi,
         'tingkatKondisi': tingkatKondisi,
-        'detailMinus': tingkatKondisi == 'Ada minus'
-            ? detailMinus.trim()
-            : '',
+        'detailMinus': tingkatKondisi == 'Ada minus' ? detailMinus.trim() : '',
         'tags': tagsBersih,
       });
       return dokumen.id;

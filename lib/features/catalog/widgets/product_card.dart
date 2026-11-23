@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../catalog_item.dart';
@@ -12,6 +11,7 @@ class ProductCard extends StatelessWidget {
     required this.onToggleSaved,
     this.onTap,
     this.showSaveButton = true,
+    this.showStatus = false,
   });
 
   final CatalogItem item;
@@ -19,6 +19,7 @@ class ProductCard extends StatelessWidget {
   final VoidCallback onToggleSaved;
   final VoidCallback? onTap;
   final bool showSaveButton;
+  final bool showStatus;
 
   static const _accent = Color(0xFF3C6247);
 
@@ -33,9 +34,7 @@ class ProductCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(
-          color: Color(0xFFD9E6F2),
-        ),
+        side: const BorderSide(color: Color(0xFFD9E6F2)),
       ),
       child: InkWell(
         onTap: onTap,
@@ -48,10 +47,40 @@ class ProductCard extends StatelessWidget {
               Expanded(
                 child: SizedBox(
                   width: double.infinity,
-                  child: CatalogPhoto(
-                    source: item.primaryPhotoSource,
-                    fit: BoxFit.contain,
-                    semanticLabel: item.name,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CatalogPhoto(
+                        source: item.primaryPhotoSource,
+                        fit: BoxFit.contain,
+                        semanticLabel: item.name,
+                      ),
+                      if (showStatus)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: item.status == 'terjual'
+                                  ? const Color(0xFFFFE0E0)
+                                  : const Color(0xFFE1ECE1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                item.status == 'terjual'
+                                    ? 'Terjual'
+                                    : 'Tersedia',
+                                style: textTheme.labelSmall,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -73,17 +102,13 @@ class ProductCard extends StatelessWidget {
                   ),
                   if (showSaveButton)
                     IconButton(
-                      tooltip: isSaved
-                          ? 'Batal simpan'
-                          : 'Simpan barang',
+                      tooltip: isSaved ? 'Batal simpan' : 'Simpan barang',
                       isSelected: isSaved,
                       selectedIcon: const Icon(
                         Icons.favorite,
                         color: Colors.red,
                       ),
-                      icon: const Icon(
-                        Icons.favorite_border,
-                      ),
+                      icon: const Icon(Icons.favorite_border),
                       onPressed: onToggleSaved,
                     ),
                 ],
@@ -117,9 +142,7 @@ class ProductCard extends StatelessWidget {
                     item.category,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(
-                      color: _accent,
-                    ),
+                    style: textTheme.labelSmall?.copyWith(color: _accent),
                   ),
                 ),
               ),

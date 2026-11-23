@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/constants/kategori_barang.dart';
 import 'catalog_item.dart';
+import 'data/kelola_barang_service.dart';
 import 'widgets/catalog_photo.dart';
 
 typedef EditBarangDraft = ({
@@ -23,12 +25,11 @@ class EditBarangResult {
   const EditBarangResult.simpan({
     required this.barangId,
     required EditBarangDraft draft,
-  })  : draft = draft,
+  }) : draft = draft,
         hapus = false;
 
-  const EditBarangResult.konfirmasiHapus({
-    required this.barangId,
-  })  : draft = null,
+  const EditBarangResult.konfirmasiHapus({required this.barangId})
+      : draft = null,
         hapus = true;
 
   final String barangId;
@@ -41,10 +42,12 @@ class EditBarangScreen extends StatefulWidget {
     super.key,
     required this.item,
     required this.kategoriTersedia,
+    this.kelolaService,
   });
 
   final CatalogItem item;
   final List<String> kategoriTersedia;
+  final KelolaBarangService? kelolaService;
 
   @override
   State<EditBarangScreen> createState() => _EditBarangScreenState();
@@ -61,6 +64,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _imagePicker = ImagePicker();
+  late final _kelolaService = widget.kelolaService ?? KelolaBarangService();
 
   late final TextEditingController _nama;
   late final TextEditingController _deskripsi;
@@ -68,6 +72,8 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
   late final TextEditingController _lokasi;
   late final TextEditingController _detailMinus;
   late String _kategori;
+  late String _statusBarang;
+  bool _isBusy = false;
 
   String? _jenisBarang;
   String? _kondisiFisik;
@@ -83,6 +89,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
     _harga = TextEditingController(text: item.price.toString());
     _lokasi = TextEditingController(text: item.location);
     _kategori = item.category;
+    _statusBarang = item.status;
 
     final kondisiTersimpan = item.condition.trim();
     final pemisahDetail = kondisiTersimpan.indexOf(':');
@@ -125,6 +132,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
   }
 
   Future<void> _pilihFoto() async {
+    if (_isBusy) return;
     try {
       final foto = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -135,9 +143,8 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
       setState(() => _fotoUtamaBaru = foto);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto gagal dibuka.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Foto gagal dibuka.')));
     }
   }
 
@@ -149,34 +156,75 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
     return int.tryParse(teks.replaceAll('.', ''));
   }
 
-  void _simpan() {
-    if (_formKey.currentState?.validate() != true) return;
+  Future<void> _simpan() async {
+    if (_isBusy || _formKey.currentState?.validate() != true) return;
+
+    final kategoriId = _kategori == widget.item.category
+        ? widget.item.categoryId
+        : kategoriBarang[_kategori];
+    if (kategoriId == null || kategoriId.isEmpty) {
+      _tampilkanKesalahan(
+        const KelolaBarangException('Pilih kategori yang valid.'),
+      );
+      return;
+    }
 
     final jenis = _jenisBarang!;
     final tingkat = _kondisiFisik!;
     final detail = tingkat == 'Ada minus' ? _detailMinus.text.trim() : '';
-    final kondisi = detail.isEmpty ? '$jenis - $tingkat' : '$jenis - $tingkat: $detail';
+    final kondisi = detail.isEmpty
+        ? '$jenis - $tingkat'
+        : '$jenis - $tingkat: $detail';
 
-    Navigator.of(context).pop(
-      EditBarangResult.simpan(
-        barangId: widget.item.id,
-        draft: (
-        namaBarang: _nama.text.trim(),
-        deskripsi: _deskripsi.text.trim(),
-        kategori: _kategori,
-        jenisKondisi: jenis,
-        tingkatKondisi: tingkat,
-        detailMinus: detail,
-        kondisi: kondisi,
-        harga: _bacaHarga(_harga.text)!,
-        lokasi: _lokasi.text.trim(),
-        fotoUtamaBaru: _fotoUtamaBaru,
-        ),
-      ),
+    final EditBarangDraft draft = (
+    namaBarang: _nama.text.trim(),
+    deskripsi: _deskripsi.text.trim(),
+    kategori: _kategori,
+    jenisKondisi: jenis,
+    tingkatKondisi: tingkat,
+    detailMinus: detail,
+    kondisi: kondisi,
+    harga: _bacaHarga(_harga.text)!,
+    lokasi: _lokasi.text.trim(),
+    fotoUtamaBaru: _fotoUtamaBaru,
     );
+    FocusScope.of(context).unfocus();
+    setState(() => _isBusy = true);
+    try {
+      await _kelolaService.perbaruiBarang(
+        barangId: widget.item.id,
+        namaBarang: draft.namaBarang,
+        deskripsi: draft.deskripsi,
+        kategoriId: kategoriId,
+        jenisKondisi: draft.jenisKondisi,
+        tingkatKondisi: draft.tingkatKondisi,
+        detailMinus: draft.detailMinus,
+        harga: draft.harga,
+        lokasi: draft.lokasi,
+        statusBarang: _statusBarang,
+        expectedUpdatedAt: widget.item.updatedAt,
+        fotoUtamaBaru: draft.fotoUtamaBaru,
+      );
+      if (!mounted) return;
+      Navigator.of(context)
+          .pop(EditBarangResult.simpan(barangId: widget.item.id, draft: draft));
+    } catch (error) {
+      if (mounted) _tampilkanKesalahan(error);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  void _tampilkanKesalahan(Object error) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(KelolaBarangService.messageFor(error))),
+      );
   }
 
   Future<void> _konfirmasiHapus() async {
+    if (_isBusy) return;
     FocusScope.of(context).unfocus();
 
     const warnaHapus = Color(0xFFE91646);
@@ -194,7 +242,10 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
         return Dialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -228,10 +279,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
                   const Text(
                     'Tindakan ini tidak dapat dibatalkan.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: warnaDeskripsi,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: warnaDeskripsi, fontSize: 13),
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -273,9 +321,20 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
 
     if (!mounted || setuju != true) return;
 
-    Navigator.of(context).pop(
-      EditBarangResult.konfirmasiHapus(barangId: widget.item.id),
-    );
+    setState(() => _isBusy = true);
+    try {
+      await _kelolaService.hapusBarang(
+        barangId: widget.item.id,
+        expectedUpdatedAt: widget.item.updatedAt,
+      );
+      if (!mounted) return;
+      Navigator.of(context)
+          .pop(EditBarangResult.konfirmasiHapus(barangId: widget.item.id));
+    } catch (error) {
+      if (mounted) _tampilkanKesalahan(error);
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
   }
 
   Widget _label(String teks) {
@@ -313,6 +372,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
         children: [
           _label(label),
           TextFormField(
+            enabled: !_isBusy,
             controller: controller,
             maxLines: lines,
             keyboardType: keyboardType,
@@ -327,10 +387,10 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
               border: border,
               enabledBorder: border,
             ),
-            validator: validator ??
-                ((value) => (value ?? '').trim().isEmpty
-                    ? 'Wajib diisi.'
-                    : null),
+            validator:
+            validator ??
+                ((value) =>
+                (value ?? '').trim().isEmpty ? 'Wajib diisi.' : null),
           ),
         ],
       ),
@@ -371,7 +431,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
             ],
             validator: (value) => value == null ? 'Wajib dipilih.' : null,
             onChanged: (value) {
-              if (value != null) onChanged(value);
+              if (!_isBusy && value != null) onChanged(value);
             },
           ),
         ],
@@ -401,7 +461,7 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
         ),
         const SizedBox(width: 16),
         IconButton(
-          onPressed: _pilihFoto,
+          onPressed: _isBusy ? null : _pilihFoto,
           icon: const Icon(Icons.add_photo_alternate_outlined),
           tooltip: 'Pilih foto utama',
         ),
@@ -413,112 +473,125 @@ class _EditBarangScreenState extends State<EditBarangScreen> {
   Widget build(BuildContext context) {
     final kategori = {widget.item.category, ...widget.kategoriTersedia};
 
-    return Scaffold(
-      backgroundColor: _latar,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_isBusy,
+      child: Scaffold(
         backgroundColor: _latar,
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: _warnaTeks,
-        centerTitle: true,
-        title: const Text(
-          'Edit Barang',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        appBar: AppBar(
+          backgroundColor: _latar,
+          surfaceTintColor: Colors.transparent,
+          foregroundColor: _warnaTeks,
+          centerTitle: true,
+          title: const Text(
+            'Edit Barang',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              _pratinjauFoto(),
-              const SizedBox(height: 18),
-              Card(
-                margin: EdgeInsets.zero,
-                elevation: 0,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _input('Nama Barang *', _nama),
-                      _input('Deskripsi *', _deskripsi, lines: 3),
-                      _dropdown(
-                        'Kategori *',
-                        'Pilih Kategori',
-                        _kategori,
-                        kategori,
-                            (value) => setState(() => _kategori = value),
-                      ),
-                      _dropdown(
-                        'Jenis Barang *',
-                        'Pilih Status',
-                        _jenisBarang,
-                        _pilihanJenis,
-                            (value) => setState(() => _jenisBarang = value),
-                      ),
-                      _dropdown(
-                        'Kondisi Fisik *',
-                        'Pilih Kondisi',
-                        _kondisiFisik,
-                        _pilihanKondisi,
-                            (value) {
-                          setState(() {
-                            _kondisiFisik = value;
-                            if (value != 'Ada minus') _detailMinus.clear();
-                          });
-                        },
-                      ),
-                      if (_kondisiFisik == 'Ada minus')
+        body: SafeArea(
+          top: false,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                if (_isBusy) const LinearProgressIndicator(color: _hijau),
+                _pratinjauFoto(),
+                const SizedBox(height: 18),
+                Card(
+                  margin: EdgeInsets.zero,
+                  elevation: 0,
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _input('Nama Barang *', _nama),
+                        _input('Deskripsi *', _deskripsi, lines: 3),
+                        _dropdown(
+                          'Kategori *',
+                          'Pilih Kategori',
+                          _kategori,
+                          kategori,
+                              (value) => setState(() => _kategori = value),
+                        ),
+                        _dropdown(
+                          'Jenis Barang *',
+                          'Pilih Status',
+                          _jenisBarang,
+                          _pilihanJenis,
+                              (value) => setState(() => _jenisBarang = value),
+                        ),
+                        _dropdown(
+                          'Kondisi Fisik *',
+                          'Pilih Kondisi',
+                          _kondisiFisik,
+                          _pilihanKondisi,
+                              (value) {
+                            setState(() {
+                              _kondisiFisik = value;
+                              if (value != 'Ada minus') _detailMinus.clear();
+                            });
+                          },
+                        ),
+                        if (_kondisiFisik == 'Ada minus')
+                          _input(
+                            'Detail Minus *',
+                            _detailMinus,
+                            hintText: 'Contoh: Tutup baterai longgar',
+                            lines: 3,
+                          ),
                         _input(
-                          'Detail Minus *',
-                          _detailMinus,
-                          hintText: 'Contoh: Tutup baterai longgar',
-                          lines: 3,
+                          'Harga *',
+                          _harga,
+                          prefixText: 'Rp ',
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            final harga = _bacaHarga(value);
+                            return harga == null || harga <= 0
+                                ? 'Masukkan harga lebih dari Rp0.'
+                                : null;
+                          },
                         ),
-                      _input(
-                        'Harga *',
-                        _harga,
-                        prefixText: 'Rp ',
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          final harga = _bacaHarga(value);
-                          return harga == null || harga <= 0
-                              ? 'Masukkan harga lebih dari Rp0.'
-                              : null;
-                        },
-                      ),
-                      _input('Lokasi *', _lokasi),
-                      const SizedBox(height: 4),
-                      FilledButton(
-                        onPressed: _simpan,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _hijau,
-                          minimumSize: const Size.fromHeight(44),
+                        _input('Lokasi *', _lokasi),
+                        _dropdown(
+                          'Status Barang *',
+                          'Pilih Status Barang',
+                          _statusBarang,
+                          const ['tersedia', 'terjual'],
+                              (value) => setState(() => _statusBarang = value),
                         ),
-                        child: const Text('Simpan Perubahan'),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _konfirmasiHapus,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _merah,
-                          side: const BorderSide(color: Color(0xFFFFCBCB)),
-                          minimumSize: const Size.fromHeight(44),
+                        const SizedBox(height: 4),
+                        FilledButton(
+                          onPressed: _isBusy ? null : _simpan,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _hijau,
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                          child: Text(
+                            _isBusy ? 'Memproses...' : 'Simpan Perubahan',
+                          ),
                         ),
-                        icon: const Icon(Icons.delete_outline, size: 19),
-                        label: const Text('Hapus Barang'),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: _isBusy ? null : _konfirmasiHapus,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _merah,
+                            side: const BorderSide(color: Color(0xFFFFCBCB)),
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                          icon: const Icon(Icons.delete_outline, size: 19),
+                          label: const Text('Hapus Barang'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
