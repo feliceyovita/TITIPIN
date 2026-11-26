@@ -11,6 +11,7 @@ import 'detail_barang_screen.dart';
 import 'edit_barang_screen.dart';
 import 'widgets/catalog_bottom_navigation.dart';
 import 'widgets/product_card.dart';
+import '../profile/profile_screen.dart';
 
 enum _CatalogTab { home, saved, myItems }
 
@@ -143,10 +144,23 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
+
   void _selectSavedTab(bool showSaved) {
     FocusScope.of(context).unfocus();
-    _selectTab(showSaved ? _CatalogTab.saved : _CatalogTab.home);
+
+    _debounce?.cancel();
+    _searchController.clear();
+
+    setState(() {
+      _activeTab = showSaved
+          ? _CatalogTab.saved
+          : _CatalogTab.home;
+
+      _keyword = '';
+      _isSearching = false;
+    });
   }
+
 
   void _selectMyItemsTab() {
     FocusScope.of(context).unfocus();
@@ -247,21 +261,42 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
-  void _openProfile() {
+
+  Future<void> _openProfile() async {
     FocusScope.of(context).unfocus();
 
-    final openProfile = widget.onOpenProfile;
-    if (openProfile != null) {
-      openProfile();
+    final customOpenProfile = widget.onOpenProfile;
+    if (customOpenProfile != null) {
+      customOpenProfile();
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Halaman Profil belum terhubung.')),
-      );
+    final destination =
+    await Navigator.of(context).push<ProfileDestination>(
+      MaterialPageRoute<ProfileDestination>(
+        builder: (_) => ProfileScreen(
+          savedCount: _savedIds.length,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    switch (destination) {
+      case ProfileDestination.home:
+        _selectTab(_CatalogTab.home);
+        break;
+      case ProfileDestination.saved:
+        _selectTab(_CatalogTab.saved);
+        break;
+      case ProfileDestination.myItems:
+        _selectMyItemsTab();
+        break;
+      case null:
+        break;
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -295,21 +330,25 @@ class _CatalogScreenState extends State<CatalogScreen> {
         bool isLoading = false,
         bool hasError = false,
       }) {
+
     final selectedCategoryId = kategoriBarang[_category]?.toLowerCase();
+
     final visibleItems = items.where((item) {
-      if (_showSaved) {
-        return _savedIds.contains(item.id);
-      }
+      final matchesSaved =
+          !_showSaved || _savedIds.contains(item.id);
 
       final matchesCategory =
           _showMyItems ||
               _category == 'Semua' ||
               (item.categoryId.isEmpty
-                  ? item.category == _category
+                  ? item.category.toLowerCase() == _category.toLowerCase()
                   : item.categoryId.toLowerCase() == selectedCategoryId);
 
-      return matchesCategory && _cocokDenganKeyword(item);
+      final matchesSearch = _cocokDenganKeyword(item);
+
+      return matchesSaved && matchesCategory && matchesSearch;
     }).toList();
+
 
     final searchText = _activeSearchController.text.trim();
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -334,31 +373,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (!_showSaved)
-              _CatalogHeader(
-                backgroundColor: _headerColor,
-                searchController: _activeSearchController,
-                onSearchChanged: _onSearchChanged,
-                onSearchSubmitted: _onSearchSubmitted,
-                onClear: _clearSearch,
-              ),
+            _CatalogHeader(
+              backgroundColor: _headerColor,
+              searchController: _searchController,
+              onSearchChanged: _onSearchChanged,
+              onSearchSubmitted: _onSearchSubmitted,
+              onClear: _clearSearch,
+            ),
             Expanded(
               child: CustomScrollView(
                 key: PageStorageKey<_CatalogTab>(_activeTab),
                 keyboardDismissBehavior:
                 ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
-                  if (_showSaved)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
-                        child: Text(
-                          'Barang Tersimpan',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                    )
-                  else if (!_showMyItems)
                     SliverToBoxAdapter(
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
