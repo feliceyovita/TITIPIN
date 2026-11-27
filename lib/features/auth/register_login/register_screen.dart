@@ -53,6 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         name: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
+        whatsappNumber: _phoneController.text,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,7 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 15),
 
-                          AuthWidgets.label('No Handphone'),
+                          AuthWidgets.label('Nomor WhatsApp'),
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
@@ -152,8 +153,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Nomor handphone harus diisi';
                               }
-                              if (value.trim().length < 10) {
-                                return 'Nomor handphone tidak valid';
+                              if (FirebaseAuthService.normalizeWhatsApp(value) == null) {
+                                return 'Nomor WhatsApp tidak valid';
                               }
                               return null;
                             },

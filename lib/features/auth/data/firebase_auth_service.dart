@@ -1,6 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 
 /// Kesalahan alur autentikasi yang dapat ditampilkan ke pengguna.
 class TitipinAuthException implements Exception {
@@ -37,13 +39,26 @@ class FirebaseAuthService {
     return null;
   }
 
+  static String? normalizeWhatsApp(String value) {
+    var phone = value.trim().replaceAll(RegExp(r'[\s()-]'), '');
+    if (phone.startsWith('+')) phone = phone.substring(1);
+    if (phone.startsWith('0')) phone = '62${phone.substring(1)}';
+    return RegExp(r'^[1-9][0-9]{7,14}$').hasMatch(phone) ? phone : null;
+  }
+
   Future<void> register({
     required String name,
+    required String whatsappNumber,
     required String email,
     required String password,
   }) async {
     if (!isUsuEmail(email)) {
       throw const TitipinAuthException('Gunakan alamat email resmi USU.');
+    }
+
+    final phone = normalizeWhatsApp(whatsappNumber);
+    if (phone == null) {
+      throw const TitipinAuthException('Nomor WhatsApp tidak valid.');
     }
 
     final result = await _auth.createUserWithEmailAndPassword(
@@ -58,11 +73,13 @@ class FirebaseAuthService {
 
     try {
       await user.updateDisplayName(name.trim());
+      await FirebaseFirestore.instance.collection('users').doc(user.uid)
+          .collection('private').doc('registration').set({'nomorTelepon': phone});
       await user.sendEmailVerification();
     } on FirebaseException {
       throw const TitipinAuthException(
-        'Akun sudah dibuat, tetapi email verifikasi belum terkirim. '
-            'Coba masuk lagi setelah memeriksa email, atau hubungi pengelola Titipin.',
+        'Akun sudah dibuat. Gunakan Kirim ulang verifikasi di halaman masuk. '
+            'Setelah login, periksa nomor WhatsApp di Profil.',
       );
     } finally {
       // Akun belum boleh masuk ke katalog sampai email diverifikasi.
@@ -105,7 +122,14 @@ class FirebaseAuthService {
       );
     }
 
-    await _syncVerifiedSellerProfile(verifiedUser);
+    try {
+      await _syncVerifiedSellerProfile(verifiedUser);
+    } on FirebaseException {
+      await _auth.signOut();
+      throw const TitipinAuthException(
+        'Profil gagal disinkronkan. Periksa koneksi lalu masuk kembali.',
+      );
+    }
   }
 
   /// Firebase Auth menyimpan sesi di Android; reload menyegarkan status verifikasi.
@@ -137,27 +161,83 @@ class FirebaseAuthService {
       await _auth.signOut();
       return false;
     }
-    await _syncVerifiedSellerProfile(refreshed);
+    // Pulihkan navigasi segera setelah sesi terverifikasi.
+    unawaited(_syncRestoredProfile(refreshed));
     return true;
+  }
+
+  Future<void> _syncRestoredProfile(User user) async {
+    try {
+      await _syncVerifiedSellerProfile(user);
+    } on FirebaseException catch (error) {
+      debugPrint('[AUTH] Sinkronisasi profil akan dicoba saat masuk ulang (${error.code}).');
+    }
   }
 
   Future<void> _syncVerifiedSellerProfile(User user) async {
     if (!user.emailVerified || !isUsuEmail(user.email ?? '')) return;
 
+    await user.getIdToken(true);
+    await _writeProfile(user);
+  }
+
+  Future<void> updateWhatsApp(String input) async {
+    final user = _auth.currentUser;
+    final phone = normalizeWhatsApp(input);
+    if (user == null || !user.emailVerified || !isUsuEmail(user.email ?? '')) {
+      throw const TitipinAuthException('Silakan masuk kembali dengan akun USU.');
+    }
+    if (phone == null) {
+      throw const TitipinAuthException('Nomor WhatsApp tidak valid.');
+    }
+    await _writeProfile(user, newPhone: phone);
+  }
+
+  Future<void> _writeProfile(User user, {String? newPhone}) async {
+    final db = FirebaseFirestore.instance;
+    final account = db.collection('users').doc(user.uid);
+    final pending = account.collection('private').doc('registration');
+    final profile = account.collection('public').doc('profile');
     final name = user.displayName?.trim();
-    try {
-      await user.getIdToken(true);
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('public')
-          .doc('profile')
-          .set({
+    await db.runTransaction<void>((tx) async {
+      final draft = await tx.get(pending);
+      final phone = newPhone ?? draft.data()?['nomorTelepon'];
+      tx.set(profile, {
         if (name != null && name.isNotEmpty) 'nama': name,
+        if (phone is String) 'nomorTelepon': phone,
         'isSellerVerified': true,
       }, SetOptions(merge: true));
-    } on FirebaseException catch (error) {
-      debugPrint('[AUTH] Gagal menyinkronkan profil penjual (${error.code}).');
+      if (draft.exists) tx.delete(pending);
+    });
+  }
+
+  Future<void> resetPassword(String email) async {
+    if (!isUsuEmail(email)) {
+      throw const TitipinAuthException('Isi email USU di kolom Email dahulu.');
+    }
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
+    } on FirebaseAuthException catch (error) {
+      if (error.code != 'user-not-found') rethrow;
+    }
+  }
+
+  Future<void> resendVerification(String email, String password) async {
+    if (!isUsuEmail(email) || password.isEmpty) {
+      throw const TitipinAuthException('Isi email USU dan password untuk mengirim ulang verifikasi.');
+    }
+    final credential = await _auth.signInWithEmailAndPassword(
+      email: email.trim().toLowerCase(), password: password,
+    );
+    try {
+      final user = credential.user;
+      if (user == null) throw const TitipinAuthException('Silakan coba lagi.');
+      if (user.emailVerified) {
+        throw const TitipinAuthException('Email sudah terverifikasi. Silakan masuk.');
+      }
+      await user.sendEmailVerification();
+    } finally {
+      await _auth.signOut();
     }
   }
 
