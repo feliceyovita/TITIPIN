@@ -10,9 +10,9 @@ import 'package:image_picker/image_picker.dart';
 /// foto yang sudah terunggah ketika proses berikutnya gagal.
 class UploadBarangException implements Exception {
   const UploadBarangException(
-      this.message, {
-        this.uploadedPublicIds = const [],
-      });
+    this.message, {
+    this.uploadedPublicIds = const [],
+  });
 
   final String message;
   final List<String> uploadedPublicIds;
@@ -79,7 +79,7 @@ class UploadBarangService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw UploadBarangException(
         'Gagal mengunggah foto (HTTP ${response.statusCode}). '
-            'Periksa format, preset Cloudinary, dan koneksi internet.',
+        'Periksa format, preset Cloudinary, dan koneksi internet.',
       );
     }
 
@@ -177,7 +177,7 @@ class UploadBarangService {
     if (!kategori.exists) {
       throw UploadBarangException(
         'Kategori "$kategoriId" belum tersedia di Firestore. '
-            'Tambahkan dokumen kategori dahulu.',
+        'Tambahkan dokumen kategori dahulu.',
       );
     }
 
@@ -214,6 +214,8 @@ class UploadBarangService {
         'tags': tagsBersih,
       });
       return dokumen.id;
+    } on UploadBarangException {
+      rethrow;
     } catch (e, stackTrace) {
       final uploadedIds = fotoBarang
           .map((foto) => foto['publicId']!)
@@ -223,12 +225,12 @@ class UploadBarangService {
       if (uploadedIds.isNotEmpty) {
         debugPrint(
           'Foto Cloudinary yang mungkin perlu dibersihkan admin: '
-              '${uploadedIds.join(', ')}',
+          '${uploadedIds.join(', ')}',
         );
       }
       throw UploadBarangException(
         'Unggah barang gagal. Periksa koneksi dan izin Firestore, '
-            'lalu coba lagi.',
+        'lalu coba lagi.',
         uploadedPublicIds: uploadedIds,
       );
     }

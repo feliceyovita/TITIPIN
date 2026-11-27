@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -17,22 +17,35 @@ class _SplashScreenState extends State<SplashScreen> {
   static const Duration _splashDuration =
   Duration(milliseconds: 1800);
 
+  static const _sessionTimeout = Duration(seconds: 8);
+
   static const Duration _animationDuration =
   Duration(milliseconds: 700);
+
+  late final Timer _splashTimer;
 
   @override
   void initState() {
     super.initState();
-    _navigateToLogin();
+    _splashTimer = Timer(_splashDuration, _navigateToLogin);
+  }
+
+  @override
+  void dispose() {
+    _splashTimer.cancel();
+    super.dispose();
   }
 
   Future<void> _navigateToLogin() async {
-    await Future<void>.delayed(_splashDuration);
+    if (!mounted) return;
+
     bool verifiedSession = false;
     try {
-      verifiedSession = await FirebaseAuthService.instance.hasVerifiedSession();
-    } catch (_) {
-      // Jika sesi tidak dapat diperiksa, tampilkan login, bukan katalog.
+      verifiedSession = await FirebaseAuthService.instance
+          .hasVerifiedSession()
+          .timeout(_sessionTimeout);
+    } catch (error) {
+      debugPrint('[SPLASH] Pemeriksaan sesi gagal (${error.runtimeType}).');
     }
     if (!mounted) return;
 

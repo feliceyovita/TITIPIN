@@ -66,12 +66,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _forgotPassword() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fitur lupa password belum diaktifkan.'),
-      ),
-    );
+  Future<void> _sendEmail({required bool verification}) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    String message;
+    try {
+      final auth = FirebaseAuthService.instance;
+      if (verification) {
+        await auth.resendVerification(_emailController.text, _passwordController.text);
+        message = 'Email verifikasi dikirim. Periksa kotak masuk dan spam.';
+      } else {
+        await auth.resetPassword(_emailController.text);
+        message = 'Jika email terdaftar, tautan reset password akan dikirim.';
+      }
+    } catch (error) {
+      message = FirebaseAuthService.messageFor(error);
+    }
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -160,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: _forgotPassword,
+                              onPressed: _isLoading ? null : () => _sendEmail(verification: false),
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.only(
                                   top: 8,
@@ -182,6 +195,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                           const SizedBox(height: 5),
 
+                          TextButton(
+                            onPressed: _isLoading ? null : () => _sendEmail(verification: true),
+                            child: const Text('Kirim ulang verifikasi'),
+                          ),
                           if (_isLoading)
                             const Center(
                               child: CircularProgressIndicator(),
@@ -223,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: TextStyle(fontSize: 11),
                               ),
                               GestureDetector(
-                                onTap: () {
+                                onTap: _isLoading ? null : () {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute<void>(

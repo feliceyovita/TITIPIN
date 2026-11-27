@@ -1,5 +1,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../catalog_item.dart';
 
 class CatalogService {
@@ -27,20 +28,21 @@ class CatalogService {
 
       final kategoriMap = <String, String>{
         for (final doc in kategoriSnapshot.docs)
-          doc.id: doc.data()['namaKategori'] as String,
+          if (doc.data()['namaKategori'] case final String name) doc.id: name,
       };
 
-      return snapshot.docs.map((doc) {
+      final items = <CatalogItem>[];
+      for (final doc in snapshot.docs) {
         final data = doc.data();
-        final kategoriId = data['kategoriId'] as String;
-
-        return CatalogItem.fromFirestore(
-          doc.id,
-          data,
-          categoryName: kategoriMap[kategoriId] ??
-              'Kategori tidak tersedia',
-        );
-      }).toList();
+        try {
+          items.add(CatalogItem.fromFirestore(doc.id, data,
+            categoryName: kategoriMap[data['kategoriId']] ?? 'Kategori tidak tersedia',
+          ));
+        } on FormatException {
+          debugPrint('[KATALOG] Dokumen barang ${doc.id} dilewati karena isinya tidak valid.');
+        }
+      }
+      return items;
     });
   }
 
@@ -75,31 +77,24 @@ class CatalogService {
         return null;
       }
 
-      final kategoriId = data['kategoriId'] as String;
-
-      final kategoriSnapshot = await _firestore
-          .collection('kategori')
-          .doc(kategoriId)
-          .get();
-
-      final namaKategori =
-          kategoriSnapshot.data()?['namaKategori']
-          as String? ??
-              'Kategori tidak tersedia';
-
-      final userId = data['userId'] as String;
-      final seller = await getSellerProfile(userId);
-
-      final sellerName = seller?['nama'] as String?;
-      final sellerPhone =
-      seller?['nomorTelepon'] as String?;
+      final categoryId = data['kategoriId'];
+      final owner = data['userId'];
+      if (!CatalogItem.validDocumentId(owner)) return null;
+      final category = CatalogItem.validDocumentId(categoryId)
+          ? await _firestore.collection('kategori').doc(categoryId as String).get()
+          : null;
+      final categoryLabel = category?.data()?['namaKategori'];
+      final namaKategori = categoryLabel is String ? categoryLabel : 'Kategori tidak tersedia';
+      final seller = await getSellerProfile(owner as String);
+      final sellerName = seller?['nama'];
+      final sellerPhone = seller?['nomorTelepon'];
 
       return CatalogItem.fromFirestore(
         snapshot.id,
         data,
         categoryName: namaKategori,
-        sellerName: sellerName,
-        sellerPhone: sellerPhone,
+        sellerName: sellerName is String ? sellerName : null,
+        sellerPhone: sellerPhone is String ? sellerPhone : null,
         isSellerVerified: seller?['isSellerVerified'] == true,
       );
     });

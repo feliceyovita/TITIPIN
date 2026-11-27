@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../auth/data/firebase_auth_service.dart';
 import '../splash/presentation/splash_screen.dart';
 import '../upload_item/upload_item_screen.dart';
 
@@ -28,6 +29,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   late final Stream<DocumentSnapshot<Map<String, dynamic>>>? _profileStream;
   late final Stream<QuerySnapshot<Map<String, dynamic>>>? _itemsStream;
+
+  bool _savingPhone = false;
 
   @override
   void initState() {
@@ -61,7 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  bool _isVerifiedStudent(User user) {
+  bool _isVerifiedMember(User user) {
     final email = (user.email ?? '').trim().toLowerCase();
     return user.emailVerified &&
         (email.endsWith('@students.usu.ac.id') ||
@@ -95,15 +98,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _toSplash() {
     Navigator.of(context).pushAndRemoveUntil<void>(
       MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
-      (route) => false,
+          (route) => false,
     );
   }
 
-  void _showError(String message) {
+  void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _editWhatsApp(String current) async {
+    final form = GlobalKey<FormState>();
+    var value = current;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Nomor WhatsApp penjual'),
+        content: Form(
+          key: form,
+          child: TextFormField(
+            initialValue: current,
+            autofocus: true,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(hintText: 'Contoh: 081234567890'),
+            validator: (text) => FirebaseAuthService.normalizeWhatsApp(text ?? '') == null
+                ? 'Masukkan nomor WhatsApp yang valid.' : null,
+            onChanged: (text) => value = text,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Batal')),
+          FilledButton(
+            onPressed: () {
+              if (form.currentState!.validate()) Navigator.pop(dialog, value);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _savingPhone = true);
+    try {
+      await FirebaseAuthService.instance.updateWhatsApp(result);
+      _showMessage('Nomor WhatsApp berhasil disimpan.');
+    } catch (_) {
+      _showMessage('Nomor gagal disimpan. Periksa koneksi dan coba lagi.');
+    } finally {
+      if (mounted) setState(() => _savingPhone = false);
+    }
   }
 
   Future<void> _askLogout() async {
@@ -121,14 +166,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await FirebaseAuth.instance.signOut();
       if (mounted) _toSplash();
     } on FirebaseAuthException {
-      _showError('Gagal keluar dari akun. Coba lagi.');
+      _showMessage('Gagal keluar dari akun. Coba lagi.');
     }
   }
 
   Future<void> _askDeleteAccount() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      _showError('Sesi pengguna tidak tersedia. Silakan login kembali.');
+      _showMessage('Sesi pengguna tidak tersedia. Silakan login kembali.');
       return;
     }
 
@@ -138,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (_) => const _DangerConfirmationDialog(
         icon: Icons.warning_amber_rounded,
         title: 'Apakah Anda yakin ingin menghapus akun?',
-        message: 'Tindakan ini tidak dapat dibatalkan.',
+        message: 'Akun akan dihapus. Barang, profil, dan wishlist akan dibersihkan oleh server.',
         confirmLabel: 'Konfirmasi Hapus Akun',
       ),
     );
@@ -149,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final email = currentUser.email;
     if (email == null || email.isEmpty ||
         !currentUser.providerData.any((p) => p.providerId == 'password')) {
-      _showError('Akun ini tidak menggunakan login email dan password.');
+      _showMessage('Akun ini tidak menggunakan login email dan password.');
       return;
     }
 
@@ -182,13 +227,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           stream: _profileStream,
           builder: (context, snapshot) {
             final profile = snapshot.data?.data();
-            final profileName = (profile?['nama'] as String?)?.trim() ?? '';
+            final rawName = profile?['nama'];
+            final profileName = rawName is String ? rawName.trim() : '';
+            final rawPhone = profile?['nomorTelepon'];
+            final phone = rawPhone is String ? rawPhone : '';
             final authName = user.displayName?.trim() ?? '';
             final displayName = profileName.isNotEmpty
                 ? profileName
                 : (authName.isNotEmpty ? authName : 'Pengguna Titipin');
             final email = user.email ?? 'Email belum tersedia';
-            final isStudent = _isVerifiedStudent(user);
+            final isMember = _isVerifiedMember(user);
 
             return ListView(
               padding: const EdgeInsets.only(bottom: 28),
@@ -235,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (isStudent) ...[
+                if (isMember) ...[
                   const SizedBox(height: 10),
                   Center(
                     child: Container(
@@ -253,7 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Icon(Icons.verified, size: 14, color: Color(0xFF7DB43A)),
                           SizedBox(width: 4),
                           Text(
-                            'Mahasiswa Terverifikasi',
+                            'Email USU Terverifikasi',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -276,9 +324,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           builder: (context, snapshot) {
                             final count = snapshot.hasData
                                 ? snapshot.data!.docs.where((doc) {
-                                    final status = doc.data()['statusBarang'];
-                                    return status == 'tersedia';
-                                  }).length.toString()
+                              final status = doc.data()['statusBarang'];
+                              return status == 'tersedia';
+                            }).length.toString()
                                 : '–';
                             return _Metric(value: count, label: 'Barang Dijual');
                           },
@@ -313,10 +361,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 14),
                             _InfoRow(icon: Icons.mail_outline, text: email),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.phone_outlined),
+                              title: Text(phone.isEmpty ? 'Isi nomor WhatsApp' : '+$phone'),
+                              subtitle: Text(phone.isEmpty ? 'Kontak untuk pembeli' : 'Ubah nomor WhatsApp'),
+                              trailing: const Icon(Icons.edit_outlined),
+                              enabled: !_savingPhone,
+                              onTap: () => _editWhatsApp(phone),
+                            ),
                             const SizedBox(height: 13),
                             _InfoRow(
                               icon: Icons.school_outlined,
-                              text: isStudent
+                              text: isMember
                                   ? 'Universitas Sumatera Utara'
                                   : 'Universitas belum terverifikasi',
                             ),
@@ -833,13 +890,13 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
                     ),
                     child: _loading
                         ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                         : const Text('Hapus Akun'),
                   ),
                 ),

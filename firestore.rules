@@ -3,56 +3,81 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function usuAccount() {
+      return request.auth != null && request.auth.token.email is string
+        && request.auth.token.email.matches('(?i)^[^@]+@(students[.])?usu[.]ac[.]id$')
+        && !exists(/databases/$(database)/documents/deletedAccounts/$(request.auth.uid));
+    }
+
     function isVerified() {
-      return request.auth != null
-        && request.auth.token.email_verified == true;
+      return usuAccount() && request.auth.token.email_verified == true;
+    }
+
+    function ownsUsuAccount(uid) {
+      return usuAccount() && request.auth.uid == uid;
     }
 
     match /barang/{barangId} {
-  function penggunaTerverifikasi() {
-    return request.auth != null && request.auth.token.email_verified == true;
-  }
+      function detailsValid(d) {
+        return d.namaBarang is string && d.namaBarang.size() > 0
+          && d.deskripsi is string && d.deskripsi.size() > 0
+          && d.kondisi is string && d.kondisi.size() > 0
+          && d.harga is int && d.harga > 0
+          && d.lokasi is string && d.lokasi.size() > 0
+          && d.kategoriId is string && d.kategoriId.matches('[^/]+')
+          && d.statusBarang in ['tersedia', 'terjual']
+          && d.updatedAt == request.time;
+      }
 
-  allow read: if penggunaTerverifikasi();
+      function validPhoto(p) {
+        return p is map
+          && p.keys().hasOnly(['publicId', 'url'])
+          && p.publicId is string && p.publicId.size() > 0 && p.publicId.size() <= 512
+          && p.url is string && p.url.size() <= 4096
+          && p.url.matches('^https://.*');
+      }
 
-  allow create: if penggunaTerverifikasi()
-      && request.resource.data.userId == request.auth.uid
-      && request.resource.data.statusBarang == 'tersedia'
-      && request.resource.data.createdAt == request.time
-      && request.resource.data.updatedAt == request.time;
+      function photoAt(next, old, i) {
+        return i >= next.size() || (i < old.size() && next[i] == old[i])
+          || validPhoto(next[i]);
+      }
 
-  allow update: if penggunaTerverifikasi()
-      && resource.data.userId == request.auth.uid
-      && request.resource.data.userId == resource.data.userId
-      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'namaBarang', 'deskripsi', 'kategoriId', 'kondisi',
-        'jenisKondisi', 'tingkatKondisi', 'detailMinus', 'harga',
-        'lokasi', 'statusBarang', 'fotoBarang', 'updatedAt'
-      ])
-      && request.resource.data.statusBarang in ['tersedia', 'terjual']
-      && request.resource.data.namaBarang is string
-      && request.resource.data.namaBarang.size() > 0
-      && request.resource.data.deskripsi is string
-      && request.resource.data.deskripsi.size() > 0
-      && request.resource.data.harga is int
-      && request.resource.data.harga > 0
-      && request.resource.data.lokasi is string
-      && request.resource.data.lokasi.size() > 0
-      && request.resource.data.updatedAt == request.time
-      && (
-        request.resource.data.kategoriId == resource.data.kategoriId
-        || exists(/databases/$(database)/documents/kategori/$(request.resource.data.kategoriId))
-      );
+      function photosValid(next, old) {
+        return next is list && next.size() >= 1 && next.size() <= 5
+          && photoAt(next, old, 0) && photoAt(next, old, 1) && photoAt(next, old, 2)
+          && photoAt(next, old, 3) && photoAt(next, old, 4);
+      }
 
-  allow delete: if penggunaTerverifikasi()
-      && resource.data.userId == request.auth.uid;
-}
+      allow read: if isVerified();
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.barangId == barangId
+        && request.resource.data.keys().hasOnly([
+          'barangId', 'userId', 'namaBarang', 'harga', 'kategoriId', 'kondisi', 'lokasi',
+          'deskripsi', 'statusBarang', 'fotoBarang', 'createdAt', 'updatedAt',
+          'jenisKondisi', 'tingkatKondisi', 'detailMinus', 'tags'
+        ])
+        && request.resource.data.statusBarang == 'tersedia'
+        && request.resource.data.createdAt == request.time && detailsValid(request.resource.data)
+        && exists(/databases/$(database)/documents/kategori/$(request.resource.data.kategoriId))
+        && photosValid(request.resource.data.fotoBarang, []);
+      allow update: if isVerified() && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'namaBarang', 'deskripsi', 'kategoriId', 'kondisi', 'jenisKondisi',
+          'tingkatKondisi', 'detailMinus', 'harga', 'lokasi', 'statusBarang', 'fotoBarang', 'updatedAt'
+        ])
+        && detailsValid(request.resource.data)
+        && (request.resource.data.kategoriId == resource.data.get('kategoriId', '')
+          || exists(/databases/$(database)/documents/kategori/$(request.resource.data.kategoriId)))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['fotoBarang'])
+          || photosValid(request.resource.data.fotoBarang,
+            resource.data.get('fotoBarang', []) is list ? resource.data.fotoBarang : []));
+      allow delete: if isVerified() && resource.data.userId == request.auth.uid;
+    }
 
     // Snapshot kartu privat. ID dokumen sama dengan ID barang.
     match /users/{userId}/wishlist/{barangId} {
       function pemilikWishlist() {
-        return isVerified() && request.auth.uid == userId
-          && request.auth.token.email.matches('(?i)^[^@]+@(students[.])?usu[.]ac[.]id$');
+        return isVerified() && request.auth.uid == userId;
       }
       function ringkasanValid() {
         let d = request.resource.data;
@@ -78,23 +103,41 @@ service cloud.firestore {
       allow read: if isVerified()
         && request.auth.uid == userId;
     }
+    function validPhone(phone) {
+      return phone is string && phone.matches('^[1-9][0-9]{7,14}$');
+    }
+
+    match /users/{userId}/private/registration {
+      allow get, delete: if ownsUsuAccount(userId) && isVerified();
+      allow create: if ownsUsuAccount(userId)
+        && request.resource.data.keys().hasOnly(['nomorTelepon'])
+        && validPhone(request.resource.data.nomorTelepon);
+    }
+
     match /users/{userId}/public/profile {
       allow get: if isVerified();
-      function bolehSinkronkanProfil() {
-  return isVerified()
-      && request.auth.uid == userId
-      && request.auth.token.email is string
-      && request.auth.token.email.matches('(?i)^[^@]+@(students[.])?usu[.]ac[.]id$')
-      && request.resource.data.isSellerVerified == true
-      && request.resource.data.get('nama', '') is string;
-}
 
-allow create: if bolehSinkronkanProfil()
-    && request.resource.data.keys().hasOnly(['nama', 'isSellerVerified']);
+      function canSyncProfile() {
+        return ownsUsuAccount(userId) && isVerified()
+          && request.resource.data.isSellerVerified == true
+          && request.resource.data.get('nama', '') is string;
+      }
 
-allow update: if bolehSinkronkanProfil()
-    && request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['nama', 'isSellerVerified']);
+      function validPhoneChange() {
+        let registration = /databases/$(database)/documents/users/$(userId)/private/registration;
+        return validPhone(request.resource.data.nomorTelepon)
+          && (!exists(registration) || !existsAfter(registration));
+      }
+
+      allow create: if canSyncProfile()
+        && request.resource.data.keys().hasOnly(['nama', 'isSellerVerified', 'nomorTelepon'])
+        && (!('nomorTelepon' in request.resource.data) || validPhoneChange());
+
+      allow update: if canSyncProfile()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['nama', 'isSellerVerified', 'nomorTelepon'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['nomorTelepon'])
+          || validPhoneChange());
     }
   }
 }

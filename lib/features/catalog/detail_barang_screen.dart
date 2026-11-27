@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../auth/data/firebase_auth_service.dart';
 import 'catalog_item.dart';
 import 'data/catalog_service.dart';
 import 'widgets/catalog_photo.dart';
@@ -31,13 +32,8 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
 
   Future<void> _contactSeller() async {
     final item = widget.item;
-    String phone = (item.sellerPhone ?? '')
-        .trim()
-        .replaceAll(RegExp(r'[\s()+-]'), '');
-    if (phone.startsWith('0')) {
-      phone = '62${phone.substring(1)}';
-    }
-    if (!RegExp(r'^[1-9]\d{7,14}$').hasMatch(phone)) {
+    final phone = FirebaseAuthService.normalizeWhatsApp(item.sellerPhone ?? '');
+    if (phone == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -245,7 +241,7 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
                                           const SizedBox(width: 5),
                                           Flexible(
                                             child: Text(
-                                              'Mahasiswa Terverifikasi',
+                                              'Email USU Terverifikasi',
                                               style: theme.labelSmall?.copyWith(
                                                 color: _green,
                                                 fontWeight: FontWeight.w600,

@@ -49,8 +49,8 @@ class WishlistService extends ChangeNotifier {
     _subscription = _collection(uid).snapshots(includeMetadataChanges: true)
         .where((snapshot) => !snapshot.metadata.hasPendingWrites)
         .map((snapshot) => {
-          for (final doc in snapshot.docs) doc.id: _readSummary(doc.id, doc.data()),
-        }).listen((saved) {
+      for (final doc in snapshot.docs) doc.id: _readSummary(doc.id, doc.data()),
+    }).listen((saved) {
       if (_generation != generation) return;
       // Snapshot lokal dari operasi hapus dapat langsung menghilangkan dokumen.
       // Pertahankan status lama sampai Future penulisan selesai di server.
@@ -78,11 +78,11 @@ class WishlistService extends ChangeNotifier {
     final photo = data['fotoUrl'];
     return CatalogItem(
       id: id,
-      name: data['namaBarang'] as String,
-      price: data['harga'] as int,
-      category: data['kategori'] as String,
-      categoryId: data['kategoriId'] as String,
-      condition: data['kondisi'] as String,
+      name: data['namaBarang'] is String ? data['namaBarang'] as String : 'Barang tidak tersedia',
+      price: data['harga'] is int ? data['harga'] as int : 0,
+      category: data['kategori'] is String ? data['kategori'] as String : 'Kategori tidak tersedia',
+      categoryId: data['kategoriId'] is String ? data['kategoriId'] as String : '',
+      condition: data['kondisi'] is String ? data['kondisi'] as String : 'Belum dicantumkan',
       fotoBarang: [
         if (photo is String && photo.isNotEmpty) {'url': photo},
       ],
@@ -113,7 +113,7 @@ class WishlistService extends ChangeNotifier {
           'kategoriId': item.categoryId,
           'kondisi': item.condition,
           'fotoUrl': item.fotoBarang.isNotEmpty &&
-                  item.fotoBarang.first['url'] == item.primaryPhotoSource
+              item.fotoBarang.first['url'] == item.primaryPhotoSource
               ? item.primaryPhotoSource : '',
         };
         await ref.set(data);

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -7,6 +9,13 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val signingFile = rootProject.file("key.properties")
+val releaseKeys = Properties().apply {
+    if (signingFile.isFile) signingFile.inputStream().use { load(it) }
+}
+val releaseFields = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+val hasReleaseKeys = releaseFields.all { !releaseKeys.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "com.titipin.app"
@@ -35,15 +44,36 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        if (hasReleaseKeys) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeys.getProperty("storeFile"))
+                storePassword = releaseKeys.getProperty("storePassword")
+                keyAlias = releaseKeys.getProperty("keyAlias")
+                keyPassword = releaseKeys.getProperty("keyPassword")
+            }
         }
     }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.findByName("release")
+        }
+    }
+
 }
 
 flutter {
     source = "../.."
+}
+
+val verifyReleaseSigning by tasks.registering {
+    doLast {
+        check(hasReleaseKeys) {
+            "Lengkapi storeFile, storePassword, keyAlias, dan keyPassword di android/key.properties."
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(verifyReleaseSigning)
 }

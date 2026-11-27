@@ -160,7 +160,8 @@ class KelolaBarangService {
       };
 
       if (fotoBaru != null) {
-        final fotoLama = List<dynamic>.from(data['fotoBarang'] as List? ?? []);
+        final raw = data['fotoBarang'];
+        final fotoLama = raw is List ? raw : const [];
         // Mengganti foto pertama dan mempertahankan foto tambahan.
         perubahan['fotoBarang'] = [fotoBaru, ...fotoLama.skip(1)];
       }

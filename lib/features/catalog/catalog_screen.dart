@@ -187,9 +187,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
       }
 
       _activeTab = tab;
-      _keyword = _showSaved
-          ? ''
-          : _activeSearchController.text.trim().toLowerCase();
+      _keyword = _activeSearchController.text.trim().toLowerCase();
       _isSearching = false;
     });
   }
@@ -374,7 +372,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
         showingMyItems: _showMyItems,
         onHome: () => _selectSavedTab(false),
         onSaved: () => _selectSavedTab(true),
-        onAdd: () {
+        onAdd: widget.onAddItem ?? () {
           Navigator.of(context).push<void>(
             MaterialPageRoute<void>(builder: (_) => const UploadItemScreen()),
           );
@@ -389,7 +387,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           children: [
             _CatalogHeader(
               backgroundColor: _headerColor,
-              searchController: _searchController,
+              searchController: _activeSearchController,
               onSearchChanged: _onSearchChanged,
               onSearchSubmitted: _onSearchSubmitted,
               onClear: _clearSearch,
@@ -410,29 +408,29 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         ),
                       ),
                     ),
-                    SliverToBoxAdapter(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-                        child: Row(
-                          children: [
-                            for (final category in _categories)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: Text(category),
-                                  selected: _category == category,
-                                  selectedColor: const Color(0xFFE1ECE1),
-                                  backgroundColor: Colors.white,
-                                  onSelected: (_) {
-                                    setState(() => _category = category);
-                                  },
-                                ),
+                  SliverToBoxAdapter(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                      child: Row(
+                        children: [
+                          for (final category in _categories)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(category),
+                                selected: _category == category,
+                                selectedColor: const Color(0xFFE1ECE1),
+                                backgroundColor: Colors.white,
+                                onSelected: (_) {
+                                  setState(() => _category = category);
+                                },
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
                     ),
+                  ),
 
                   // info hasil pencarian
                   if (!_showSaved &&
@@ -538,7 +536,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                                   showStatus: _showMyItems || _showSaved,
                                   onTap: () => _openDetail(item),
                                   onToggleSaved: _wishlist.canChange(item.id)
-                        ? () => _toggleSaved(item) : null,
+                                      ? () => _toggleSaved(item) : null,
                                 );
                               }, childCount: visibleItems.length),
                             ),
@@ -553,7 +551,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   String _emptyMessage(List<CatalogItem> items) {
-    if (_showSaved) return 'Belum ada barang tersimpan.';
+    if (_showSaved) {
+      return _wishlist.count == 0 ? 'Belum ada barang tersimpan.' : 'Barang tidak ditemukan.';
+    }
     if (items.isNotEmpty) return 'Barang tidak ditemukan.';
 
     return _showMyItems
