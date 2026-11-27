@@ -14,8 +14,6 @@ class ProfileScreen extends StatefulWidget {
     required this.savedCount,
   });
 
-  // Selama wishlist masih disimpan lokal di CatalogScreen,
-  // jumlah barang tersimpan diteruskan dari halaman tersebut.
   final int savedCount;
 
   @override

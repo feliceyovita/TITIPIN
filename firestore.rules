@@ -1,0 +1,100 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isVerified() {
+      return request.auth != null
+        && request.auth.token.email_verified == true;
+    }
+
+    match /barang/{barangId} {
+  function penggunaTerverifikasi() {
+    return request.auth != null && request.auth.token.email_verified == true;
+  }
+
+  allow read: if penggunaTerverifikasi();
+
+  allow create: if penggunaTerverifikasi()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.statusBarang == 'tersedia'
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.updatedAt == request.time;
+
+  allow update: if penggunaTerverifikasi()
+      && resource.data.userId == request.auth.uid
+      && request.resource.data.userId == resource.data.userId
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'namaBarang', 'deskripsi', 'kategoriId', 'kondisi',
+        'jenisKondisi', 'tingkatKondisi', 'detailMinus', 'harga',
+        'lokasi', 'statusBarang', 'fotoBarang', 'updatedAt'
+      ])
+      && request.resource.data.statusBarang in ['tersedia', 'terjual']
+      && request.resource.data.namaBarang is string
+      && request.resource.data.namaBarang.size() > 0
+      && request.resource.data.deskripsi is string
+      && request.resource.data.deskripsi.size() > 0
+      && request.resource.data.harga is int
+      && request.resource.data.harga > 0
+      && request.resource.data.lokasi is string
+      && request.resource.data.lokasi.size() > 0
+      && request.resource.data.updatedAt == request.time
+      && (
+        request.resource.data.kategoriId == resource.data.kategoriId
+        || exists(/databases/$(database)/documents/kategori/$(request.resource.data.kategoriId))
+      );
+
+  allow delete: if penggunaTerverifikasi()
+      && resource.data.userId == request.auth.uid;
+}
+
+    // Snapshot kartu privat. ID dokumen sama dengan ID barang.
+    match /users/{userId}/wishlist/{barangId} {
+      function pemilikWishlist() {
+        return isVerified() && request.auth.uid == userId
+          && request.auth.token.email.matches('(?i)^[^@]+@(students[.])?usu[.]ac[.]id$');
+      }
+      function ringkasanValid() {
+        let d = request.resource.data;
+        let barang = get(/databases/$(database)/documents/barang/$(barangId)).data;
+        return d.keys().hasOnly(['namaBarang', 'harga', 'kategori', 'kategoriId', 'kondisi', 'fotoUrl'])
+          && barang.statusBarang == 'tersedia'
+          && d.namaBarang is string && d.namaBarang == barang.namaBarang
+          && d.harga is int && d.harga == barang.harga
+          && d.kategoriId is string && d.kategoriId == barang.kategoriId
+          && d.kondisi is string && d.kondisi == barang.kondisi
+          && d.kategori is string && d.kategori.size() <= 256
+          && d.fotoUrl is string && d.fotoUrl.size() <= 4096
+          && (d.fotoUrl == '' || d.fotoUrl == barang.fotoBarang[0].url);
+      }
+      allow read, delete: if pemilikWishlist();
+      allow create, update: if pemilikWishlist() && ringkasanValid();
+    }
+
+    match /kategori/{kategoriId} {
+      allow read: if isVerified();
+    }
+    match /users/{userId} {
+      allow read: if isVerified()
+        && request.auth.uid == userId;
+    }
+    match /users/{userId}/public/profile {
+      allow get: if isVerified();
+      function bolehSinkronkanProfil() {
+  return isVerified()
+      && request.auth.uid == userId
+      && request.auth.token.email is string
+      && request.auth.token.email.matches('(?i)^[^@]+@(students[.])?usu[.]ac[.]id$')
+      && request.resource.data.isSellerVerified == true
+      && request.resource.data.get('nama', '') is string;
+}
+
+allow create: if bolehSinkronkanProfil()
+    && request.resource.data.keys().hasOnly(['nama', 'isSellerVerified']);
+
+allow update: if bolehSinkronkanProfil()
+    && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['nama', 'isSellerVerified']);
+    }
+  }
+}

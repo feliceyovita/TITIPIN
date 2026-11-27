@@ -16,7 +16,7 @@ class DetailBarangScreen extends StatefulWidget {
 
   final CatalogItem item;
   final bool initiallySaved;
-  final VoidCallback onToggleSaved;
+  final VoidCallback? onToggleSaved;
 
   @override
   State<DetailBarangScreen> createState() => _DetailBarangScreenState();
@@ -27,18 +27,7 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
   static const _background = Color(0xFFF0F5FA);
 
   int _photoIndex = 0;
-  late bool _isSaved;
-
-  @override
-  void initState() {
-    super.initState();
-    _isSaved = widget.initiallySaved;
-  }
-
-  void _toggleSaved() {
-    widget.onToggleSaved();
-    setState(() => _isSaved = !_isSaved);
-  }
+  bool get _isSaved => widget.initiallySaved;
 
   Future<void> _contactSeller() async {
     final item = widget.item;
@@ -290,7 +279,7 @@ class _DetailBarangScreenState extends State<DetailBarangScreen> {
               Expanded(
                 flex: 2,
                 child: OutlinedButton.icon(
-                  onPressed: _toggleSaved,
+                  onPressed: widget.onToggleSaved,
                   icon: Icon(
                     _isSaved ? Icons.favorite : Icons.favorite_border,
                     color: _isSaved ? Colors.red : _green,
@@ -330,7 +319,7 @@ class DetailBarangByIdScreen extends StatefulWidget {
 
   final String barangId;
   final bool initiallySaved;
-  final VoidCallback onToggleSaved;
+  final VoidCallback? onToggleSaved;
 
   @override
   State<DetailBarangByIdScreen> createState() =>

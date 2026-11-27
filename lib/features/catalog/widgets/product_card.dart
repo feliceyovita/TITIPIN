@@ -16,7 +16,7 @@ class ProductCard extends StatelessWidget {
 
   final CatalogItem item;
   final bool isSaved;
-  final VoidCallback onToggleSaved;
+  final VoidCallback? onToggleSaved;
   final VoidCallback? onTap;
   final bool showSaveButton;
   final bool showStatus;
@@ -61,7 +61,7 @@ class ProductCard extends StatelessWidget {
                           left: 0,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: item.status == 'terjual'
+                              color: item.status != 'tersedia'
                                   ? const Color(0xFFFFE0E0)
                                   : const Color(0xFFE1ECE1),
                               borderRadius: BorderRadius.circular(8),
@@ -72,9 +72,9 @@ class ProductCard extends StatelessWidget {
                                 vertical: 4,
                               ),
                               child: Text(
-                                item.status == 'terjual'
-                                    ? 'Terjual'
-                                    : 'Tersedia',
+                                item.status == 'tersedia'
+                                    ? 'Tersedia'
+                                    : item.status == 'terjual' ? 'Terjual' : 'Tidak tersedia',
                                 style: textTheme.labelSmall,
                               ),
                             ),

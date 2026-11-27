@@ -7,6 +7,7 @@ import '../../core/constants/kategori_barang.dart';
 import '../upload_item/upload_item_screen.dart';
 import 'catalog_item.dart';
 import 'data/catalog_service.dart';
+import 'data/wishlist_service.dart';
 import 'detail_barang_screen.dart';
 import 'edit_barang_screen.dart';
 import 'widgets/catalog_bottom_navigation.dart';
@@ -43,7 +44,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   final _catalogService = CatalogService();
   final _searchController = TextEditingController();
   final _myItemsSearchController = TextEditingController();
-  final Set<String> _savedIds = {};
+  late final _wishlist = WishlistService();
 
   late Stream<List<CatalogItem>> _itemsStream = _catalogService
       .watchAvailableItems();
@@ -65,6 +66,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   @override
   void dispose() {
+    _wishlist.dispose();
     _debounce?.cancel();
     _searchController.dispose();
     _myItemsSearchController.dispose();
@@ -135,6 +137,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   void _retryLoad() {
+    if (_wishlist.hasError) _wishlist.retry();
     setState(() {
       if (_showMyItems) {
         _myItemsStream = _loadMyItems();
@@ -191,12 +194,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
-  void _toggleSaved(String itemId) {
-    setState(() {
-      if (!_savedIds.remove(itemId)) {
-        _savedIds.add(itemId);
-      }
-    });
+  Future<void> _toggleSaved(CatalogItem item) async {
+    try {
+      await _wishlist.toggle(item);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perubahan wishlist gagal. Coba lagi.')),
+      );
+    }
   }
 
   Future<void> _openDetail(CatalogItem item) async {
@@ -214,9 +220,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
       if (!mounted || hasil == null) return;
 
-      if (hasil.hapus) {
-        setState(() => _savedIds.remove(hasil.barangId));
-      }
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -240,23 +243,23 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) {
-          final initiallySaved = _savedIds.contains(item.id);
-
-          if (widget.items != null) {
-            return DetailBarangScreen(
-              item: item,
-              initiallySaved: initiallySaved,
-              onToggleSaved: () => _toggleSaved(item.id),
+        builder: (_) => ListenableBuilder(
+          listenable: _wishlist,
+          builder: (_, _) {
+            final saved = _wishlist.contains(item.id);
+            final toggle = _wishlist.canChange(item.id)
+                ? () => _toggleSaved(item)
+                : null;
+            if (widget.items != null) {
+              return DetailBarangScreen(
+                item: item, initiallySaved: saved, onToggleSaved: toggle,
+              );
+            }
+            return DetailBarangByIdScreen(
+              barangId: item.id, initiallySaved: saved, onToggleSaved: toggle,
             );
-          }
-
-          return DetailBarangByIdScreen(
-            barangId: item.id,
-            initiallySaved: initiallySaved,
-            onToggleSaved: () => _toggleSaved(item.id),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -274,8 +277,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final destination =
     await Navigator.of(context).push<ProfileDestination>(
       MaterialPageRoute<ProfileDestination>(
-        builder: (_) => ProfileScreen(
-          savedCount: _savedIds.length,
+        builder: (_) => ListenableBuilder(
+          listenable: _wishlist,
+          builder: (_, _) => ProfileScreen(savedCount: _wishlist.count),
         ),
       ),
     );
@@ -300,7 +304,18 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _wishlist,
+      builder: (context, _) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final providedItems = widget.items;
+    if (_showSaved && !_wishlist.ready) {
+      return _buildCatalog(context, const [],
+          isLoading: !_wishlist.hasError, hasError: _wishlist.hasError);
+    }
 
     if (!_showMyItems && providedItems != null) {
       return _buildCatalog(context, providedItems);
@@ -333,9 +348,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
     final selectedCategoryId = kategoriBarang[_category]?.toLowerCase();
 
-    final visibleItems = items.where((item) {
-      final matchesSaved =
-          !_showSaved || _savedIds.contains(item.id);
+    final source = _showSaved ? _wishlist.resolveItems(items) : items;
+    final visibleItems = source.where((item) {
 
       final matchesCategory =
           _showMyItems ||
@@ -346,7 +360,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
       final matchesSearch = _cocokDenganKeyword(item);
 
-      return matchesSaved && matchesCategory && matchesSearch;
+      return matchesCategory && matchesSearch;
     }).toList();
 
 
@@ -386,6 +400,16 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 keyboardDismissBehavior:
                 ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
+                  if (_wishlist.hasError && !_showSaved && !_showMyItems)
+                    SliverToBoxAdapter(
+                      child: ListTile(
+                        title: const Text('Simpan Barang tidak dapat dimuat.'),
+                        trailing: TextButton(
+                          onPressed: _wishlist.retry,
+                          child: const Text('Coba lagi'),
+                        ),
+                      ),
+                    ),
                     SliverToBoxAdapter(
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
@@ -509,11 +533,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
                                 return ProductCard(
                                   key: ValueKey(item.id),
                                   item: item,
-                                  isSaved: _savedIds.contains(item.id),
+                                  isSaved: _wishlist.contains(item.id),
                                   showSaveButton: !_showMyItems,
-                                  showStatus: _showMyItems,
+                                  showStatus: _showMyItems || _showSaved,
                                   onTap: () => _openDetail(item),
-                                  onToggleSaved: () => _toggleSaved(item.id),
+                                  onToggleSaved: _wishlist.canChange(item.id)
+                        ? () => _toggleSaved(item) : null,
                                 );
                               }, childCount: visibleItems.length),
                             ),
